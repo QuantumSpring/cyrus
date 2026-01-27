@@ -1,3 +1,6 @@
+import { createWriteStream, existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import type { WriteStream } from "node:fs";
 import {
 	createLogger,
 	type ILogger,
@@ -18,6 +21,10 @@ export interface LoggerOptions {
 	prefix?: string;
 	/** Whether to include timestamps */
 	timestamps?: boolean;
+	/** Directory to write log files to (e.g. ~/.cyrus/logs) */
+	logDir?: string;
+	/** Existing file stream to write to (used by child loggers) */
+	logStream?: WriteStream;
 }
 
 /**
@@ -32,6 +39,7 @@ export class Logger implements ILogger {
 	private coreLogger: ILogger;
 	private prefix: string;
 	private timestamps: boolean;
+	private logStream?: WriteStream;
 
 	constructor(options: LoggerOptions = {}) {
 		this.prefix = options.prefix ?? "";
@@ -40,6 +48,37 @@ export class Logger implements ILogger {
 			component: this.prefix || "CLI",
 			level: options.level,
 		});
+
+		if (options.logStream) {
+			this.logStream = options.logStream;
+		} else if (options.logDir) {
+			this.initLogFile(options.logDir);
+		}
+	}
+
+	private initLogFile(logDir: string): void {
+		try {
+			if (!existsSync(logDir)) {
+				mkdirSync(logDir, { recursive: true });
+			}
+			const timestamp = new Date()
+				.toISOString()
+				.replace(/[:.]/g, "-");
+			const logPath = join(logDir, `cyrus-${timestamp}.log`);
+			this.logStream = createWriteStream(logPath, { flags: "a" });
+			console.log(`📝 Logging to ${logPath}`);
+		} catch (error) {
+			console.error(
+				`Failed to initialize log file: ${(error as Error).message}`,
+			);
+		}
+	}
+
+	private writeToFile(message: string): void {
+		if (this.logStream) {
+			const ts = new Date().toISOString();
+			this.logStream.write(`${ts} ${message}\n`);
+		}
 	}
 
 	/**
@@ -47,6 +86,7 @@ export class Logger implements ILogger {
 	 */
 	debug(message: string, ...args: any[]): void {
 		this.coreLogger.debug(message, ...args);
+		this.writeToFile(`[DEBUG] ${message}`);
 	}
 
 	/**
@@ -54,6 +94,7 @@ export class Logger implements ILogger {
 	 */
 	info(message: string, ...args: any[]): void {
 		this.coreLogger.info(message, ...args);
+		this.writeToFile(`[INFO] ${message}`);
 	}
 
 	/**
@@ -61,6 +102,7 @@ export class Logger implements ILogger {
 	 */
 	success(message: string, ...args: any[]): void {
 		this.coreLogger.info(message, ...args);
+		this.writeToFile(`[OK] ${message}`);
 	}
 
 	/**
@@ -68,6 +110,7 @@ export class Logger implements ILogger {
 	 */
 	warn(message: string, ...args: any[]): void {
 		this.coreLogger.warn(message, ...args);
+		this.writeToFile(`[WARN] ${message}`);
 	}
 
 	/**
@@ -75,6 +118,7 @@ export class Logger implements ILogger {
 	 */
 	error(message: string, ...args: any[]): void {
 		this.coreLogger.error(message, ...args);
+		this.writeToFile(`[ERROR] ${message}`);
 	}
 
 	/**
@@ -82,6 +126,7 @@ export class Logger implements ILogger {
 	 */
 	raw(message: string, ...args: any[]): void {
 		console.log(message, ...args);
+		this.writeToFile(message);
 	}
 
 	/**
@@ -92,6 +137,7 @@ export class Logger implements ILogger {
 			level: this.coreLogger.getLevel(),
 			prefix: this.prefix ? `${this.prefix}:${prefix}` : prefix,
 			timestamps: this.timestamps,
+			logStream: this.logStream,
 		});
 	}
 

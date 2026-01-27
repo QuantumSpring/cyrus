@@ -32,8 +32,10 @@ export class Application {
 		customEnvPath?: string,
 		version?: string,
 	) {
-		// Initialize logger first
-		this.logger = new Logger();
+		// Initialize logger with file output
+		this.logger = new Logger({
+			logDir: join(cyrusHome, "logs"),
+		});
 
 		// Store version
 		this.version = version || "unknown";
