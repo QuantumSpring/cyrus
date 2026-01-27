@@ -81,12 +81,23 @@ export class SelfAuthCommand extends BaseCommand {
 				(r: EdgeConfig["repositories"][number]) =>
 					r.linearWorkspaceId === workspace.id,
 			).length;
-			this.logSuccess(`Updated ${updatedCount} repository/repositories`);
+			if (updatedCount > 0) {
+				this.logSuccess(`Updated ${updatedCount} repository/repositories`);
+			}
+			this.logSuccess(
+				`Saved workspace credentials for "${workspace.name}" to config.json`,
+			);
 
 			console.log();
-			this.logSuccess(
-				"Authentication complete! Restart cyrus to use the new tokens.",
-			);
+			if (updatedCount === 0) {
+				this.logSuccess(
+					"Authentication complete! Run 'cyrus self-add-repo <url>' to add a repository.",
+				);
+			} else {
+				this.logSuccess(
+					"Authentication complete! Restart cyrus to use the new tokens.",
+				);
+			}
 			process.exit(0);
 		} catch (error) {
 			this.logError(`Authentication failed: ${(error as Error).message}`);
@@ -255,7 +266,42 @@ export class SelfAuthCommand extends BaseCommand {
 			}
 		}
 
-		writeFileSync(configPath, JSON.stringify(config, null, "\t"), "utf-8");
+		// Always save workspace credentials at top level so self-add-repo
+		// can find them even when no repositories exist yet
+		const configWithCreds = config as EdgeConfig & {
+			workspaceCredentials?: Array<{
+				id: string;
+				name: string;
+				token: string;
+				refreshToken?: string;
+			}>;
+		};
+
+		if (!configWithCreds.workspaceCredentials) {
+			configWithCreds.workspaceCredentials = [];
+		}
+
+		const existing = configWithCreds.workspaceCredentials.find(
+			(w) => w.id === workspace.id,
+		);
+		if (existing) {
+			existing.token = tokens.accessToken;
+			existing.refreshToken = tokens.refreshToken;
+			existing.name = workspace.name;
+		} else {
+			configWithCreds.workspaceCredentials.push({
+				id: workspace.id,
+				name: workspace.name,
+				token: tokens.accessToken,
+				refreshToken: tokens.refreshToken,
+			});
+		}
+
+		writeFileSync(
+			configPath,
+			JSON.stringify(configWithCreds, null, "\t"),
+			"utf-8",
+		);
 	}
 
 	private async cleanup(): Promise<void> {

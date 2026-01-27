@@ -120,6 +120,28 @@ export class SelfAddRepoCommand extends BaseCommand {
 				}
 			}
 
+			// Fallback: check top-level workspaceCredentials saved by self-auth
+			const configWithCreds = config as typeof config & {
+				workspaceCredentials?: Array<{
+					id: string;
+					name: string;
+					token: string;
+					refreshToken?: string;
+				}>;
+			};
+			if (configWithCreds.workspaceCredentials) {
+				for (const cred of configWithCreds.workspaceCredentials) {
+					if (cred.id && cred.token && !workspaces.has(cred.id)) {
+						workspaces.set(cred.id, {
+							id: cred.id,
+							name: cred.name || cred.id,
+							token: cred.token,
+							refreshToken: cred.refreshToken,
+						});
+					}
+				}
+			}
+
 			if (workspaces.size === 0) {
 				this.logError(
 					"No Linear credentials found. Run 'cyrus self-auth' first.",
