@@ -722,9 +722,30 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 				// Result messages indicate completion
 				break;
 
-			case "system":
-				// System messages are for initialization
+			case "system": {
+				// Log session capabilities from the init message
+				const sys = message as Record<string, unknown>;
+				if (sys.subtype === "init") {
+					const mcpServers = sys.mcp_servers as
+						| Array<{ name: string; status: string }>
+						| undefined;
+					const skills = sys.skills as string[] | undefined;
+					const plugins = sys.plugins as string[] | undefined;
+
+					if (mcpServers?.length) {
+						console.log(
+							`[ClaudeRunner] MCP servers: ${mcpServers.map((s) => `${s.name}(${s.status})`).join(", ")}`,
+						);
+					}
+					if (skills?.length) {
+						console.log(`[ClaudeRunner] Skills: ${skills.join(", ")}`);
+					}
+					if (plugins?.length) {
+						console.log(`[ClaudeRunner] Plugins: ${plugins.join(", ")}`);
+					}
+				}
 				break;
+			}
 
 			case "rate_limit_event":
 			case "stream_event":
