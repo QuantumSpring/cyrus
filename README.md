@@ -51,10 +51,17 @@ Zero cost option. This requires hosting everything yourself, including your own 
 
 Follow the complete **[End-to-End Community Guide](./docs/SELF_HOSTING.md)**.
 
+### Building from Source
+
+Want to build and run Cyrus from the repository instead of installing the published package?
+
+Follow the **[Building from Source Guide](./docs/BUILDING_FROM_SOURCE.md)**.
+
 ---
 
 ## Documentation
 
+- **[Building from Source](./docs/BUILDING_FROM_SOURCE.md)** - Build and run from repository
 - **[End-to-End Community Guide](./docs/SELF_HOSTING.md)** - Complete community manual setup
 - **[Git & GitHub Setup](./docs/GIT_GITHUB.md)** - Git and GitHub CLI configuration for PRs
 - **[Configuration Reference](./docs/CONFIG_FILE.md)** - Detailed config.json options
