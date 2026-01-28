@@ -9,7 +9,7 @@ mkdir -p "$LOGS_DST/transcripts"
 for dir in "$LOGS_SRC"/*/; do
     name=$(basename "$dir")
 
-    jsonl_files=$(ls "$dir"session*.jsonl 2>/dev/null | grep -v 'session-pending' | sort)
+    jsonl_files=$(ls -tr "$dir"session*.jsonl 2>/dev/null | grep -v 'session-pending')
     if [ -z "$jsonl_files" ]; then
         echo "Skipping $name (no jsonl files)"
         continue

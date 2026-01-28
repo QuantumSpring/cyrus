@@ -15,8 +15,8 @@ for dir in "$LOGS_SRC"/*/; do
     echo "# $name" > "$outfile"
     echo "" >> "$outfile"
 
-    # Sort session*.md files by filename (contains timestamp)
-    for f in $(ls "$dir"session*.md 2>/dev/null | grep -v 'session-pending' | sort); do
+    # Sort session*.md files by modification time (oldest first)
+    for f in $(ls -tr "$dir"session*.md 2>/dev/null | grep -v 'session-pending'); do
         echo "---" >> "$outfile"
         echo "" >> "$outfile"
         echo "## $(basename "$f")" >> "$outfile"
