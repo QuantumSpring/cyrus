@@ -1,6 +1,6 @@
+import type { WriteStream } from "node:fs";
 import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { WriteStream } from "node:fs";
 import {
 	createLogger,
 	type ILogger,
@@ -61,9 +61,7 @@ export class Logger implements ILogger {
 			if (!existsSync(logDir)) {
 				mkdirSync(logDir, { recursive: true });
 			}
-			const timestamp = new Date()
-				.toISOString()
-				.replace(/[:.]/g, "-");
+			const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 			const logPath = join(logDir, `cyrus-${timestamp}.log`);
 			this.logStream = createWriteStream(logPath, { flags: "a" });
 			console.log(`📝 Logging to ${logPath}`);
