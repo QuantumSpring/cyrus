@@ -122,11 +122,6 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 			const client = linearClient.client;
 			const originalRequest = client.request.bind(client);
 
-			// Track the current refresh promise - this is kept around after resolution
-			// so that ALL concurrent 401 errors share the same refreshed token.
-			// The promise is only cleared when refresh fails, allowing a fresh retry.
-			let refreshPromise: Promise<string> | null = null;
-
 			client.request = async <Data, Variables extends Record<string, unknown>>(
 				document: string,
 				variables?: Variables,
@@ -144,20 +139,11 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 					// or if it's not a token expiration error
 					if (isRetry || !this.isTokenExpiredError(error)) throw error;
 
-					// Coalesce ALL concurrent refresh attempts - everyone shares the same promise.
-					// The promise persists after resolution so late-arriving 401s still get
-					// the same token without triggering a new refresh.
-					if (!refreshPromise) {
-						refreshPromise = this.doTokenRefresh().catch((refreshError) => {
-							// On failure, clear the promise so next 401 can retry fresh
-							refreshPromise = null;
-							this.logger.error("Token refresh failed:", refreshError);
-							throw refreshError;
-						});
-					}
-
+					// Always trigger a fresh refresh on 401 - doTokenRefresh() handles
+					// workspace-level coalescing via the static pendingRefreshes map,
+					// so concurrent 401s still share a single HTTP refresh call.
 					try {
-						const newToken = await refreshPromise;
+						const newToken = await this.doTokenRefresh();
 						client.setHeader("Authorization", `Bearer ${newToken}`);
 
 						// Retry the request with the new token (marked as retry to prevent loops)
@@ -168,6 +154,7 @@ export class LinearIssueTrackerService implements IIssueTrackerService {
 							true, // isRetry flag
 						)) as Data;
 					} catch (_refreshError) {
+						this.logger.error("Token refresh failed:", _refreshError);
 						// If refresh failed, throw the original 401 error for clarity
 						throw error;
 					}
