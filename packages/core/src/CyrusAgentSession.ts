@@ -66,6 +66,7 @@ export interface CyrusAgentSession {
 	cursorSessionId?: string; // Cursor-specific session ID (assigned once it initializes)
 	agentRunner?: IAgentRunner;
 	metadata?: {
+		persona?: "default" | "pm";
 		model?: string;
 		tools?: string[];
 		permissionMode?: string;

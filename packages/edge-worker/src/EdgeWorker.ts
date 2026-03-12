@@ -129,6 +129,7 @@ import {
 	type RepositoryRouterDeps,
 } from "./RepositoryRouter.js";
 import { RunnerSelectionService } from "./RunnerSelectionService.js";
+import { SessionPersonaService } from "./SessionPersonaService.js";
 import { SharedApplicationServer } from "./SharedApplicationServer.js";
 import { SlackChatAdapter } from "./SlackChatAdapter.js";
 import { LinearActivitySink } from "./sinks/LinearActivitySink.js";
@@ -205,6 +206,7 @@ export class EdgeWorker extends EventEmitter {
 	private cyrusToolsMcpRequestContext =
 		new AsyncLocalStorage<CyrusToolsMcpContext>();
 	private cyrusToolsMcpSessions = new Sessions<any>();
+	private readonly sessionPersonaService = new SessionPersonaService();
 
 	constructor(config: EdgeWorkerConfig) {
 		super();
@@ -1078,10 +1080,16 @@ export class EdgeWorker extends EventEmitter {
 
 			// Build allowed tools and directories
 			// Exclude Slack MCP tools from GitHub sessions
-			const allowedTools = this.buildAllowedTools(repository).filter(
-				(t) => t !== "mcp__slack",
+			const allowedTools = this.buildAllowedTools(
+				repository,
+				undefined,
+				session,
+			).filter((t) => t !== "mcp__slack");
+			const disallowedTools = this.buildDisallowedTools(
+				repository,
+				undefined,
+				session,
 			);
-			const disallowedTools = this.buildDisallowedTools(repository);
 			const allowedDirectories: string[] = [repository.repositoryPath];
 
 			// Create agent runner using the standard config builder
@@ -2640,6 +2648,12 @@ ${taskSection}`;
 				`Failed to create session for agent activity session ${sessionId}`,
 			);
 		}
+		if (!session.metadata) {
+			session.metadata = {};
+		}
+		if (!session.metadata.persona) {
+			session.metadata.persona = "default";
+		}
 
 		// Download attachments before creating Claude runner
 		const attachmentResult = await this.downloadIssueAttachments(
@@ -2672,8 +2686,12 @@ ${taskSection}`;
 		);
 
 		// Build allowed tools list with Linear MCP tools
-		const allowedTools = this.buildAllowedTools(repository);
-		const disallowedTools = this.buildDisallowedTools(repository);
+		const allowedTools = this.buildAllowedTools(repository, undefined, session);
+		const disallowedTools = this.buildDisallowedTools(
+			repository,
+			undefined,
+			session,
+		);
 
 		return {
 			session,
@@ -2840,10 +2858,14 @@ ${taskSection}`;
 
 		// HACK: This is required since the comment body is always populated, thus there is no other way to differentiate between the two trigger events
 		const AGENT_SESSION_MARKER = "This thread is for an agent session";
+		const detectedPersona =
+			this.sessionPersonaService.detectPersonaFromComment(commentBody);
+		const cleanedCommentBody =
+			this.sessionPersonaService.stripPmPersonaTag(commentBody);
 		const isMentionTriggered =
-			commentBody && !commentBody.includes(AGENT_SESSION_MARKER);
+			cleanedCommentBody && !cleanedCommentBody.includes(AGENT_SESSION_MARKER);
 		// Check if the comment contains the /label-based-prompt command
-		const isLabelBasedPromptRequested = commentBody?.includes(
+		const isLabelBasedPromptRequested = cleanedCommentBody?.includes(
 			"/label-based-prompt",
 		);
 
@@ -2881,6 +2903,14 @@ ${taskSection}`;
 		// Initialize procedure metadata using intelligent routing
 		if (!session.metadata) {
 			session.metadata = {};
+		}
+		session.metadata.persona = detectedPersona;
+
+		if (detectedPersona === "pm") {
+			await agentSessionManager.createThoughtActivity(
+				sessionId,
+				"PM persona active for this session. I will focus on scope, requirements, risks, and delivery planning.",
+			);
 		}
 
 		// Post ephemeral "Routing..." thought
@@ -3003,10 +3033,13 @@ ${taskSection}`;
 				session,
 				fullIssue,
 				repository,
-				userComment: commentBody || "", // Empty for delegation, present for mentions
+				userComment: cleanedCommentBody || "", // Empty for delegation, present for mentions
 				attachmentManifest: attachmentResult.manifest,
 				guidance: guidance || undefined,
-				agentSession,
+				agentSession: this.sessionPersonaService.withCleanedCommentBody(
+					agentSession,
+					cleanedCommentBody,
+				),
 				labels,
 				isNewSession: true,
 				isStreaming: false, // Not yet streaming
@@ -3053,10 +3086,11 @@ ${taskSection}`;
 			// If subroutine has disallowAllTools: true, use empty array to disable all tools
 			const allowedTools = currentSubroutine?.disallowAllTools
 				? []
-				: this.buildAllowedTools(repository, promptType);
+				: this.buildAllowedTools(repository, promptType, session);
 			const baseDisallowedTools = this.buildDisallowedTools(
 				repository,
 				promptType,
+				session,
 			);
 
 			// Merge subroutine-level disallowedTools if applicable
@@ -3404,6 +3438,20 @@ ${taskSection}`;
 			// Destructure session data for new session
 			fullIssue = sessionData.fullIssue;
 			session = sessionData.session;
+			if (!session.metadata) {
+				session.metadata = {};
+			}
+			const detectedPersona =
+				this.sessionPersonaService.detectPersonaFromComment(
+					webhook.agentActivity.content.body,
+				);
+			session.metadata.persona = detectedPersona;
+			if (detectedPersona === "pm") {
+				await agentSessionManager.createThoughtActivity(
+					sessionId,
+					"PM persona active for this session. I will focus on scope, requirements, risks, and delivery planning.",
+				);
+			}
 
 			this.logger.debug(`Created new session ${sessionId} (prompted webhook)`);
 
@@ -3420,6 +3468,12 @@ ${taskSection}`;
 			this.logger.debug(
 				`Found existing session ${sessionId} for new user prompt`,
 			);
+			if (!session.metadata) {
+				session.metadata = {};
+			}
+			if (!session.metadata.persona) {
+				session.metadata.persona = "default";
+			}
 
 			// Post instant acknowledgment for existing session BEFORE any async work
 			// Check if runner is currently running (streaming is Claude-specific, use isRunning for both)
@@ -3530,7 +3584,9 @@ ${taskSection}`;
 			this.logger.error("Failed to fetch comments for attachments:", error);
 		}
 
-		const promptBody = webhook.agentActivity.content.body;
+		const promptBody = this.sessionPersonaService.stripPmPersonaTag(
+			webhook.agentActivity.content.body,
+		);
 
 		// Use centralized streaming check and routing logic
 		try {
@@ -4654,7 +4710,9 @@ ${taskSection}`;
 			components.push("attachment-manifest");
 		}
 
-		const parts: string[] = [input.userComment];
+		const parts: string[] = [
+			this.sessionPersonaService.stripPmPersonaTag(input.userComment),
+		];
 		if (input.attachmentManifest) {
 			parts.push(input.attachmentManifest);
 		}
@@ -4703,6 +4761,14 @@ ${taskSection}`;
 			systemPrompt = sharedInstructions;
 		}
 
+		const personaInstructions =
+			await this.promptBuilder.loadPersonaInstructions(
+				this.sessionPersonaService.getSessionPersona(input.session),
+			);
+		if (personaInstructions) {
+			systemPrompt = `${systemPrompt}\n\n${personaInstructions}`;
+		}
+
 		// 3. Build issue context using appropriate builder
 		// Use label-based prompt ONLY if we have a label-based system prompt
 		const promptType = this.determinePromptType(
@@ -4740,7 +4806,10 @@ ${taskSection}`;
 
 		// 5. Add user comment (if present)
 		// Skip for mention-triggered prompts since the comment is already in the mention block
-		if (input.userComment.trim() && !input.isMentionTriggered) {
+		const cleanedUserComment = this.sessionPersonaService.stripPmPersonaTag(
+			input.userComment,
+		);
+		if (cleanedUserComment.trim() && !input.isMentionTriggered) {
 			// If we have author/timestamp metadata, include it for multi-player context
 			if (input.commentAuthor || input.commentTimestamp) {
 				const author = input.commentAuthor || "Unknown";
@@ -4749,12 +4818,12 @@ ${taskSection}`;
   <author>${author}</author>
   <timestamp>${timestamp}</timestamp>
   <content>
-${input.userComment}
+${cleanedUserComment}
   </content>
 </user_comment>`);
 			} else {
 				// Legacy format without metadata
-				parts.push(`<user_comment>\n${input.userComment}\n</user_comment>`);
+				parts.push(`<user_comment>\n${cleanedUserComment}\n</user_comment>`);
 			}
 			components.push("user-comment");
 		}
@@ -4794,7 +4863,7 @@ ${input.userComment}
   <author>${author}</author>
   <timestamp>${timestamp}</timestamp>
   <content>
-${input.userComment}
+${this.sessionPersonaService.stripPmPersonaTag(input.userComment)}
   </content>
 </new_comment>`;
 
@@ -5233,10 +5302,12 @@ ${input.userComment}
 			| "scoper"
 			| "orchestrator"
 			| "graphite-orchestrator",
+		session?: CyrusAgentSession,
 	): string[] {
 		return this.runnerSelectionService.buildDisallowedTools(
 			repository,
 			promptType,
+			this.sessionPersonaService.getSessionPersona(session),
 		);
 	}
 
@@ -5271,10 +5342,12 @@ ${input.userComment}
 			| "scoper"
 			| "orchestrator"
 			| "graphite-orchestrator",
+		session?: CyrusAgentSession,
 	): string[] {
 		return this.runnerSelectionService.buildAllowedTools(
 			repository,
 			promptType,
+			this.sessionPersonaService.getSessionPersona(session),
 		);
 	}
 
@@ -5861,10 +5934,11 @@ ${input.userComment}
 		// If subroutine has disallowAllTools: true, use empty array to disable all tools
 		const allowedTools = currentSubroutine?.disallowAllTools
 			? []
-			: this.buildAllowedTools(repository, promptType);
+			: this.buildAllowedTools(repository, promptType, session);
 		const baseDisallowedTools = this.buildDisallowedTools(
 			repository,
 			promptType,
+			session,
 		);
 
 		// Merge subroutine-level disallowedTools if applicable

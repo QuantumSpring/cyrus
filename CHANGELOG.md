@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Session-scoped PM persona trigger (`#pm`)** - In single-app deployments, adding `#pm` to the initial comment now activates a planning-focused PM persona for that session. PM sessions keep persona lock across follow-ups, strip the `#pm` token from model-facing prompt text, and apply non-mutating tool restrictions by default.
+
 ### Fixed
 - **Rate limit event handling** - Rate limit events from Claude are now properly handled instead of producing "Unknown message type" warnings in logs. ([CYPACK-895](https://linear.app/ceedar/issue/CYPACK-895), [#946](https://github.com/ceedaragents/cyrus/pull/946))
 

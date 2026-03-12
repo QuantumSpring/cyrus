@@ -4,6 +4,9 @@
  * Tests prompt assembly for new (initial) sessions with full issue context.
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "vitest";
 import { createTestWorker, scenario } from "./prompt-assembly-utils.js";
 
@@ -163,6 +166,89 @@ Remember: Your first message is internal planning. Use this time to:
 2. Create detailed todos using TodoWrite
 3. Plan your approach systematically
 </task_management_instructions>`)
+			.expectPromptType("fallback")
+			.expectComponents("issue-context", "user-comment")
+			.verify();
+	});
+
+	it("assignment-based with PM persona - should append PM system prompt and strip #pm tag", async () => {
+		const worker = createTestWorker();
+		const __filename = fileURLToPath(import.meta.url);
+		const __dirname = dirname(__filename);
+		const sharedPrompt = readFileSync(
+			join(
+				__dirname,
+				"..",
+				"src",
+				"prompts",
+				"todolist-system-prompt-extension.md",
+			),
+			"utf-8",
+		);
+		const pmPrompt = readFileSync(
+			join(__dirname, "..", "src", "prompts", "personas", "pm.md"),
+			"utf-8",
+		);
+
+		const session = {
+			issueId: "c3d4e5f6-a7b8-9012-cdef-123456789012",
+			workspace: { path: "/test" },
+			metadata: { persona: "pm" },
+		};
+
+		const issue = {
+			id: "c3d4e5f6-a7b8-9012-cdef-123456789012",
+			identifier: "CEE-789",
+			title: "Plan migration",
+			description: "Migrate payment provider",
+		};
+
+		const repository = {
+			id: "repo-uuid-3456-7890-12cd-ef1234567890",
+			path: "/test/repo",
+		};
+
+		await scenario(worker)
+			.newSession()
+			.assignmentBased()
+			.withSession(session)
+			.withIssue(issue)
+			.withRepository(repository)
+			.withUserComment("#pm Please create a migration plan")
+			.withLabels()
+			.expectUserPrompt(`<context>
+  <repository>undefined</repository>
+  <working_directory>/test/repo</working_directory>
+  <base_branch>main</base_branch>
+</context>
+
+<linear_issue>
+  <id>c3d4e5f6-a7b8-9012-cdef-123456789012</id>
+  <identifier>CEE-789</identifier>
+  <title>Plan migration</title>
+  <description>
+Migrate payment provider
+  </description>
+  <state>Unknown</state>
+  <priority>None</priority>
+  <url></url>
+  <assignee>
+    <linear_display_name></linear_display_name>
+    <linear_profile_url></linear_profile_url>
+    <github_username></github_username>
+    <github_user_id></github_user_id>
+    <github_noreply_email></github_noreply_email>
+  </assignee>
+</linear_issue>
+
+<linear_comments>
+No comments yet.
+</linear_comments>
+
+<user_comment>
+Please create a migration plan
+</user_comment>`)
+			.expectSystemPrompt(`${sharedPrompt}\n\n${pmPrompt}`)
 			.expectPromptType("fallback")
 			.expectComponents("issue-context", "user-comment")
 			.verify();

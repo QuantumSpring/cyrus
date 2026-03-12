@@ -14,6 +14,8 @@ import type {
 
 import type { ProcedureAnalyzer } from "./procedures/index.js";
 
+type SessionPersona = "default" | "pm";
+
 export class RunnerSelectionService {
 	private config: EdgeWorkerConfig;
 	private logger: ILogger;
@@ -367,6 +369,7 @@ export class RunnerSelectionService {
 			| "scoper"
 			| "orchestrator"
 			| "graphite-orchestrator",
+		persona: SessionPersona = "default",
 	): string[] {
 		// graphite-orchestrator uses the same tool config as orchestrator
 		const effectivePromptType =
@@ -374,44 +377,62 @@ export class RunnerSelectionService {
 		let baseTools: string[] = [];
 		let toolSource = "";
 
+		// Persona override (highest priority)
+		if (persona === "pm") {
+			baseTools = [
+				"Read(**)",
+				"WebFetch",
+				"WebSearch",
+				"TodoRead",
+				"TodoWrite",
+				"NotebookRead",
+				"Task",
+				"Batch",
+				"Skill",
+			];
+			toolSource = "pm persona override";
+		}
+
 		// Priority order:
 		// 1. Repository-specific prompt type configuration
-		const promptConfig = effectivePromptType
-			? repository.labelPrompts?.[effectivePromptType]
-			: undefined;
-		// Only access allowedTools if config is object form (not simple string[])
-		const promptAllowedTools =
-			promptConfig && !Array.isArray(promptConfig)
-				? promptConfig.allowedTools
+		if (persona !== "pm") {
+			const promptConfig = effectivePromptType
+				? repository.labelPrompts?.[effectivePromptType]
 				: undefined;
-		if (promptAllowedTools) {
-			baseTools = this.resolveToolPreset(promptAllowedTools);
-			toolSource = `repository label prompt (${effectivePromptType})`;
-		}
-		// 2. Global prompt type defaults
-		else if (
-			effectivePromptType &&
-			this.config.promptDefaults?.[effectivePromptType]?.allowedTools
-		) {
-			baseTools = this.resolveToolPreset(
-				this.config.promptDefaults[effectivePromptType].allowedTools,
-			);
-			toolSource = `global prompt defaults (${effectivePromptType})`;
-		}
-		// 3. Repository-level allowed tools
-		else if (repository.allowedTools) {
-			baseTools = repository.allowedTools;
-			toolSource = "repository configuration";
-		}
-		// 4. Global default allowed tools
-		else if (this.config.defaultAllowedTools) {
-			baseTools = this.config.defaultAllowedTools;
-			toolSource = "global defaults";
-		}
-		// 5. Fall back to safe tools
-		else {
-			baseTools = getSafeTools();
-			toolSource = "safe tools fallback";
+			// Only access allowedTools if config is object form (not simple string[])
+			const promptAllowedTools =
+				promptConfig && !Array.isArray(promptConfig)
+					? promptConfig.allowedTools
+					: undefined;
+			if (promptAllowedTools) {
+				baseTools = this.resolveToolPreset(promptAllowedTools);
+				toolSource = `repository label prompt (${effectivePromptType})`;
+			}
+			// 2. Global prompt type defaults
+			else if (
+				effectivePromptType &&
+				this.config.promptDefaults?.[effectivePromptType]?.allowedTools
+			) {
+				baseTools = this.resolveToolPreset(
+					this.config.promptDefaults[effectivePromptType].allowedTools,
+				);
+				toolSource = `global prompt defaults (${effectivePromptType})`;
+			}
+			// 3. Repository-level allowed tools
+			else if (repository.allowedTools) {
+				baseTools = repository.allowedTools;
+				toolSource = "repository configuration";
+			}
+			// 4. Global default allowed tools
+			else if (this.config.defaultAllowedTools) {
+				baseTools = this.config.defaultAllowedTools;
+				toolSource = "global defaults";
+			}
+			// 5. Fall back to safe tools
+			else {
+				baseTools = getSafeTools();
+				toolSource = "safe tools fallback";
+			}
 		}
 
 		// MCP tools that should always be available
@@ -444,6 +465,7 @@ export class RunnerSelectionService {
 			| "scoper"
 			| "orchestrator"
 			| "graphite-orchestrator",
+		persona: SessionPersona = "default",
 	): string[] {
 		// graphite-orchestrator uses the same tool config as orchestrator
 		const effectivePromptType =
@@ -496,7 +518,14 @@ export class RunnerSelectionService {
 			);
 		}
 
-		return disallowedTools;
+		if (persona !== "pm") {
+			return disallowedTools;
+		}
+
+		// PM persona is intentionally non-mutating.
+		return [
+			...new Set([...disallowedTools, "Edit(**)", "NotebookEdit", "Bash"]),
+		];
 	}
 
 	/**

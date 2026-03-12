@@ -4,6 +4,10 @@ This changelog documents internal development changes, refactors, tooling update
 
 ## [Unreleased]
 
+### Added
+- Added single-instance PM persona routing via `#pm`: session-level persona metadata (`default|pm`), PM instruction prompt injection, prompt-token sanitization, persona lock behavior on follow-ups, and persona-aware non-mutating tool restrictions in runner selection.
+- Extracted persona parsing/sanitization/session-helper logic from `EdgeWorker.ts` into a new `SessionPersonaService` module to keep the orchestrator class smaller and easier to maintain.
+
 ### Fixed
 - Tests now use `mkdtempSync` for unique per-run temp directories (gemini-runner, cursor-runner, edge-worker), avoiding EACCES on shared `/tmp` and preventing simultaneous test runs from different worktrees from competing for the same folders.
 - Added proper handling for `rate_limit_event` messages from Claude runners in `AgentSessionManager` with tiered logging (warn/info/debug by status), and silenced all unhandled informational message types (`rate_limit_event`, `stream_event`, `tool_progress`, `auth_status`, `tool_use_summary`, `prompt_suggestion`) in `ClaudeRunner.processMessage`. ([CYPACK-895](https://linear.app/ceedar/issue/CYPACK-895), [#946](https://github.com/ceedaragents/cyrus/pull/946))
