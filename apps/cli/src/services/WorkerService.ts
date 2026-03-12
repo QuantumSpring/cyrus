@@ -189,17 +189,22 @@ export class WorkerService {
 
 		// Load config once for model defaults
 		const edgeConfig = this.configService.load();
+		const envAllowedTools = process.env.ALLOWED_TOOLS?.split(",")
+			.map((t) => t.trim())
+			.filter(Boolean);
+		const envDisallowedTools = process.env.DISALLOWED_TOOLS?.split(",")
+			.map((t) => t.trim())
+			.filter(Boolean);
 
 		// Create EdgeWorker configuration
 		const config: EdgeWorkerConfig = {
 			version: this.version,
 			repositories,
 			cyrusHome: this.cyrusHome,
-			defaultAllowedTools:
-				process.env.ALLOWED_TOOLS?.split(",").map((t) => t.trim()) || [],
+			// Env vars override config; otherwise preserve config file values.
+			defaultAllowedTools: envAllowedTools ?? edgeConfig.defaultAllowedTools,
 			defaultDisallowedTools:
-				process.env.DISALLOWED_TOOLS?.split(",").map((t) => t.trim()) ||
-				undefined,
+				envDisallowedTools ?? edgeConfig.defaultDisallowedTools,
 			// Model configuration: environment variables take precedence over config file.
 			// Legacy env vars/keys are still accepted for backwards compatibility.
 			claudeDefaultModel:
