@@ -1429,4 +1429,30 @@ ${reply.body}
 			return [];
 		}
 	}
+
+	/**
+	 * Load additional system prompt instructions for a session persona.
+	 * Returns undefined when no persona-specific prompt should be applied.
+	 */
+	async loadPersonaInstructions(
+		persona: "default" | "pm" | undefined,
+	): Promise<string | undefined> {
+		if (!persona || persona === "default") {
+			return undefined;
+		}
+
+		const __filename = fileURLToPath(import.meta.url);
+		const __dirname = dirname(__filename);
+		const promptPath = join(__dirname, "prompts", "personas", `${persona}.md`);
+
+		try {
+			return await readFile(promptPath, "utf-8");
+		} catch (error) {
+			this.logger.warn(
+				`Failed to load persona prompt for "${persona}" from ${promptPath}:`,
+				error,
+			);
+			return undefined;
+		}
+	}
 }

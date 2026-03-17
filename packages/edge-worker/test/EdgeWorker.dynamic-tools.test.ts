@@ -449,6 +449,34 @@ describe("EdgeWorker - Dynamic Tools Configuration", () => {
 
 			expect(tools).toEqual(["CustomTool", "mcp__linear", "mcp__cyrus-tools"]);
 		});
+
+		it("should enforce PM persona allowed-tools override", () => {
+			const repository: RepositoryConfig = {
+				...mockConfig.repositories[0],
+				allowedTools: ["Read", "Edit", "Bash"],
+			};
+
+			const buildAllowedTools = getBuildAllowedTools(edgeWorker);
+			const tools = buildAllowedTools(repository, undefined, {
+				metadata: { persona: "pm" },
+			});
+
+			expect(tools).toEqual([
+				"Read(**)",
+				"WebFetch",
+				"WebSearch",
+				"TodoRead",
+				"TodoWrite",
+				"NotebookRead",
+				"Task",
+				"Batch",
+				"Skill",
+				"mcp__linear",
+				"mcp__cyrus-tools",
+			]);
+			expect(tools).not.toContain("Edit(**)");
+			expect(tools).not.toContain("Bash");
+		});
 	});
 
 	describe("determineSystemPromptFromLabels", () => {
@@ -786,6 +814,25 @@ describe("EdgeWorker - Dynamic Tools Configuration", () => {
 			// Without prompt type, should use repository level
 			const noPromptTools = buildDisallowedTools(repository);
 			expect(noPromptTools).toEqual(["RepoLevel"]);
+		});
+
+		it("should always disallow mutating tools in PM persona", () => {
+			const repository: RepositoryConfig = {
+				...mockConfig.repositories[0],
+				disallowedTools: ["CustomBlockedTool"],
+			};
+
+			const buildDisallowedTools = getBuildDisallowedTools(edgeWorker);
+			const tools = buildDisallowedTools(repository, undefined, {
+				metadata: { persona: "pm" },
+			});
+
+			expect(tools).toEqual([
+				"CustomBlockedTool",
+				"Edit(**)",
+				"NotebookEdit",
+				"Bash",
+			]);
 		});
 	});
 });

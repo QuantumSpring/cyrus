@@ -4,6 +4,9 @@
  * Tests prompt assembly for new (initial) sessions with full issue context.
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "vitest";
 import { createTestWorker, scenario } from "./prompt-assembly-utils.js";
 
@@ -165,6 +168,110 @@ Remember: Your first message is internal planning. Use this time to:
 </task_management_instructions>`)
 			.expectPromptType("fallback")
 			.expectComponents("issue-context", "user-comment")
+			.verify();
+	});
+
+	it("assignment-based with PM persona - should append PM system prompt, strip #pm tag, and load pm-analysis subroutine", async () => {
+		const worker = createTestWorker();
+		const __filename = fileURLToPath(import.meta.url);
+		const __dirname = dirname(__filename);
+		const pmPrompt = readFileSync(
+			join(__dirname, "..", "src", "prompts", "personas", "pm.md"),
+			"utf-8",
+		);
+		const pmAnalysisSubroutinePrompt = readFileSync(
+			join(__dirname, "..", "src", "prompts", "subroutines", "pm-analysis.md"),
+			"utf-8",
+		);
+
+		// Session includes procedure metadata as it would after initializeProcedureMetadata
+		// sets up the pm-analysis procedure (currentSubroutineIndex: 0 = pm-analysis subroutine)
+		const session = {
+			issueId: "c3d4e5f6-a7b8-9012-cdef-123456789012",
+			workspace: { path: "/test" },
+			metadata: {
+				persona: "pm",
+				procedure: {
+					procedureName: "pm-analysis",
+					currentSubroutineIndex: 0,
+					subroutineHistory: [],
+				},
+			},
+		};
+
+		const issue = {
+			id: "c3d4e5f6-a7b8-9012-cdef-123456789012",
+			identifier: "CEE-789",
+			title: "Plan migration",
+			description: "Migrate payment provider",
+		};
+
+		const repository = {
+			id: "repo-uuid-3456-7890-12cd-ef1234567890",
+			path: "/test/repo",
+		};
+
+		await scenario(worker)
+			.newSession()
+			.assignmentBased()
+			.withSession(session)
+			.withIssue(issue)
+			.withRepository(repository)
+			.withUserComment("#pm Please create a migration plan")
+			.withLabels()
+			.expectUserPrompt(`<context>
+  <repository>undefined</repository>
+  <working_directory>/test/repo</working_directory>
+  <base_branch>main</base_branch>
+</context>
+
+<linear_issue>
+  <id>c3d4e5f6-a7b8-9012-cdef-123456789012</id>
+  <identifier>CEE-789</identifier>
+  <title>Plan migration</title>
+  <description>
+Migrate payment provider
+  </description>
+  <state>Unknown</state>
+  <priority>None</priority>
+  <url></url>
+  <assignee>
+    <linear_display_name></linear_display_name>
+    <linear_profile_url></linear_profile_url>
+    <github_username></github_username>
+    <github_user_id></github_user_id>
+    <github_noreply_email></github_noreply_email>
+  </assignee>
+</linear_issue>
+
+<linear_comments>
+No comments yet.
+</linear_comments>
+
+${pmAnalysisSubroutinePrompt}
+
+<user_comment>
+Please create a migration plan
+</user_comment>`)
+			.expectSystemPrompt(`<task_management_instructions>
+CRITICAL: You MUST use the TodoWrite and TodoRead tools extensively:
+- IMMEDIATELY create a comprehensive task list at the beginning of your work
+- Break down complex tasks into smaller, actionable items
+- Mark tasks as 'in_progress' when you start them
+- Mark tasks as 'completed' immediately after finishing them
+- Only have ONE task 'in_progress' at a time
+- Add new tasks as you discover them during your work
+- Your first response should focus on creating a thorough task breakdown
+
+Remember: Your first message is internal planning. Use this time to:
+1. Thoroughly analyze the issue and requirements
+2. Create detailed todos using TodoWrite
+3. Plan your approach systematically
+</task_management_instructions>
+
+${pmPrompt}`)
+			.expectPromptType("fallback")
+			.expectComponents("issue-context", "subroutine-prompt", "user-comment")
 			.verify();
 	});
 });

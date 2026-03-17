@@ -129,6 +129,44 @@ export const SUBROUTINES = {
 		suppressThoughtPosting: true,
 		disallowAllTools: true,
 	},
+	pmAnalysis: {
+		name: "pm-analysis",
+		promptPath: "subroutines/pm-analysis.md",
+		description:
+			"Conducting PM analysis: scope, requirements, risks, dependencies",
+	},
+	pmSummary: {
+		name: "pm-summary",
+		promptPath: "subroutines/pm-summary.md",
+		singleTurn: true,
+		description: "Presenting PM deliverable",
+		suppressThoughtPosting: true,
+		disallowAllTools: true,
+	},
+	pmBugSummary: {
+		name: "pm-bug-summary",
+		promptPath: "subroutines/pm-bug-summary.md",
+		singleTurn: true,
+		description: "Presenting PM bug analysis",
+		suppressThoughtPosting: true,
+		disallowAllTools: true,
+	},
+	pmFeatureSummary: {
+		name: "pm-feature-summary",
+		promptPath: "subroutines/pm-feature-summary.md",
+		singleTurn: true,
+		description: "Presenting PM feature specification",
+		suppressThoughtPosting: true,
+		disallowAllTools: true,
+	},
+	pmFeedbackSummary: {
+		name: "pm-feedback-summary",
+		promptPath: "subroutines/pm-feedback-summary.md",
+		singleTurn: true,
+		description: "Presenting PM feedback synthesis",
+		suppressThoughtPosting: true,
+		disallowAllTools: true,
+	},
 } as const;
 
 /**
@@ -209,6 +247,13 @@ export const PROCEDURES: Record<string, ProcedureDefinition> = {
 		description:
 			"Release workflow that invokes project release skill or asks user for release info",
 		subroutines: [SUBROUTINES.releaseExecution, SUBROUTINES.releaseSummary],
+	},
+
+	"pm-analysis": {
+		name: "pm-analysis",
+		description:
+			"PM persona workflow: analyze scope, requirements, risks, and present structured planning deliverable",
+		subroutines: [SUBROUTINES.pmAnalysis, SUBROUTINES.pmSummary],
 	},
 };
 
