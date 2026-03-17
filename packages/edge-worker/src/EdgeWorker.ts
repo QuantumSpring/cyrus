@@ -1,6 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { basename, join } from "node:path";
 import { LinearClient } from "@linear/sdk";
 import type {
@@ -677,6 +679,9 @@ export class EdgeWorker extends EventEmitter {
 
 		// 5. Register /version endpoint for CLI version info
 		this.registerVersionEndpoint();
+
+		// 6. Register /api/self-deploy endpoint (if GITHUB_DEPLOY_WEBHOOK_SECRET is set)
+		this.registerSelfDeployEndpoint();
 	}
 
 	/**
@@ -710,6 +715,68 @@ export class EdgeWorker extends EventEmitter {
 
 		this.logger.info("✅ Version endpoint registered");
 		this.logger.info("   Route: GET /version");
+	}
+
+	/**
+	 * Register the /api/self-deploy endpoint for auto-rebuilding Cyrus on GitHub push.
+	 * Enabled only when GITHUB_DEPLOY_WEBHOOK_SECRET is set.
+	 * On a verified push to main, runs: git pull && pnpm install && pnpm build && pm2 restart cyrus
+	 * in CYRUS_REPO_PATH (defaults to cwd).
+	 */
+	private registerSelfDeployEndpoint(): void {
+		const secret = process.env.GITHUB_DEPLOY_WEBHOOK_SECRET;
+		if (!secret) return;
+
+		const fastify = this.sharedApplicationServer.getFastifyInstance();
+
+		fastify.post("/api/self-deploy", async (request, reply) => {
+			const rawBody = (request as any).rawBody as string | undefined;
+			if (!rawBody) {
+				return reply.status(400).send({ error: "Missing body" });
+			}
+
+			// Verify GitHub HMAC-SHA256 signature
+			const sig = (request.headers["x-hub-signature-256"] as string) ?? "";
+			const expected = `sha256=${createHmac("sha256", secret).update(rawBody).digest("hex")}`;
+			try {
+				if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+					return reply.status(401).send({ error: "Invalid signature" });
+				}
+			} catch {
+				return reply.status(401).send({ error: "Invalid signature" });
+			}
+
+			// Only handle push events to main
+			const event = request.headers["x-github-event"] as string;
+			const body = request.body as any;
+			if (event !== "push" || body?.ref !== "refs/heads/main") {
+				return reply.status(200).send({ skipped: true });
+			}
+
+			this.logger.info("[SelfDeploy] Push to main detected — will deploy once idle...");
+			reply.status(200).send({ deploying: true });
+
+			// Wait until Cyrus is idle, then deploy (detached so pm2 restart won't kill the response)
+			const repoPath = process.env.CYRUS_REPO_PATH || process.cwd();
+			const waitAndDeploy = () => {
+				if (this.computeStatus() === "busy") {
+					this.logger.info("[SelfDeploy] Cyrus is busy, checking again in 15s...");
+					setTimeout(waitAndDeploy, 15_000);
+					return;
+				}
+				this.logger.info("[SelfDeploy] Cyrus is idle — starting deploy...");
+				const child = spawn(
+					"bash",
+					["-c", `cd ${JSON.stringify(repoPath)} && git pull && pnpm install && pnpm build && pm2 restart cyrus`],
+					{ detached: true, stdio: "ignore" },
+				);
+				child.unref();
+			};
+			setTimeout(waitAndDeploy, 500);
+		});
+
+		this.logger.info("✅ Self-deploy endpoint registered");
+		this.logger.info("   Route: POST /api/self-deploy");
 	}
 
 	/**
