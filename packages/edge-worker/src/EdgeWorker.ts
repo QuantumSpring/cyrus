@@ -2966,7 +2966,18 @@ ${taskSection}`;
 		let finalClassification: RequestClassification;
 
 		// If labels indicate a specific procedure, use that instead of AI routing
-		if (hasDebuggerLabel) {
+		if (detectedPersona === "pm") {
+			// PM persona bypasses AI routing — uses PM-specific analysis procedure
+			const pmProcedure = this.procedureAnalyzer.getProcedure("pm-analysis");
+			if (!pmProcedure) {
+				throw new Error("pm-analysis procedure not found in registry");
+			}
+			finalProcedure = pmProcedure;
+			finalClassification = "question";
+			log.info(
+				`Using pm-analysis procedure due to PM persona (skipping AI routing)`,
+			);
+		} else if (hasDebuggerLabel) {
 			const debuggerProcedure =
 				this.procedureAnalyzer.getProcedure("debugger-full");
 			if (!debuggerProcedure) {
