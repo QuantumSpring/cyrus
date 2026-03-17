@@ -27,7 +27,7 @@ Configure Cyrus through the dashboard at [app.atcyrus.com](https://app.atcyrus.c
 # Install Cyrus
 npm install -g cyrus-ai
 
-# Authenticate with your token (provided during onboarding)
+# Authenticate with your token (provided during onboarding) 
 cyrus auth <your-token>
 ```
 
