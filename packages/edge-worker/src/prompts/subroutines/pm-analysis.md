@@ -1,13 +1,9 @@
 # PM Analysis
 
-Conduct a thorough product management analysis of this issue:
+Classify this issue into exactly one of the following types:
+- **bug** — something is broken or behaving incorrectly
+- **feature** — a new capability or enhancement is being requested
+- **feedback** — general feedback, opinion, or suggestion without a clear implementation ask
 
-- Clarify scope and define what is in/out
-- Identify requirements, constraints, and dependencies
-- Surface assumptions and known unknowns
-- Assess risks and open questions
-- Propose sequencing or decomposition if needed
-
-Use available tools to read relevant code, docs, or configuration to inform your analysis.
-
-Complete with: `Analysis complete - ready to present findings.`
+End your response with exactly this line (no extra text after it):
+`PM_TYPE: bug` or `PM_TYPE: feature` or `PM_TYPE: feedback`

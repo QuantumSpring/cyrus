@@ -115,6 +115,7 @@ import {
 	ProcedureAnalyzer,
 	type ProcedureDefinition,
 	type RequestClassification,
+	SUBROUTINES,
 	type SubroutineDefinition,
 } from "./procedures/index.js";
 import type {
@@ -1658,12 +1659,41 @@ ${taskSection}`;
 		const log = this.logger.withContext({ sessionId });
 		log.info(`Handling subroutine completion for session ${sessionId}`);
 
+		// If the just-completed subroutine was pm-analysis, extract PM_TYPE classification
+		const lastResult = this.procedureAnalyzer.getLastSubroutineResult(session);
+		if (lastResult) {
+			const pmTypeMatch = lastResult.match(/PM_TYPE:\s*(bug|feature|feedback)/i);
+			if (pmTypeMatch?.[1]) {
+				if (!session.metadata) session.metadata = {};
+				session.metadata.pmType = pmTypeMatch[1].toLowerCase() as
+					| "bug"
+					| "feature"
+					| "feedback";
+				log.info(`PM type classified as: ${session.metadata.pmType}`);
+			}
+		}
+
 		// Get next subroutine (advancement already handled by AgentSessionManager)
-		const nextSubroutine = this.procedureAnalyzer.getCurrentSubroutine(session);
+		let nextSubroutine = this.procedureAnalyzer.getCurrentSubroutine(session);
 
 		if (!nextSubroutine) {
 			log.info(`Procedure complete for session ${sessionId}`);
 			return;
+		}
+
+		// For pm-analysis procedure, swap generic pm-summary for the type-specific summary
+		if (nextSubroutine.name === "pm-summary" && session.metadata?.pmType) {
+			const pmType = session.metadata.pmType as string;
+			const typed =
+				pmType === "bug"
+					? SUBROUTINES.pmBugSummary
+					: pmType === "feature"
+						? SUBROUTINES.pmFeatureSummary
+						: SUBROUTINES.pmFeedbackSummary;
+			log.info(
+				`Swapping pm-summary → ${typed.name} based on PM_TYPE: ${pmType}`,
+			);
+			nextSubroutine = typed;
 		}
 
 		log.info(`Next subroutine: ${nextSubroutine.name}`);

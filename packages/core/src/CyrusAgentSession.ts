@@ -67,6 +67,7 @@ export interface CyrusAgentSession {
 	agentRunner?: IAgentRunner;
 	metadata?: {
 		persona?: "default" | "pm";
+		pmType?: "bug" | "feature" | "feedback";
 		model?: string;
 		tools?: string[];
 		permissionMode?: string;
