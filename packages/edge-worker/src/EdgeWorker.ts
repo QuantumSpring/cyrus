@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { spawn } from "node:child_process";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 import { basename, join } from "node:path";
 import { LinearClient } from "@linear/sdk";
 import type {
@@ -746,28 +746,36 @@ export class EdgeWorker extends EventEmitter {
 				return reply.status(401).send({ error: "Invalid signature" });
 			}
 
-			// Only handle push events to main
+			// Only handle push events to the configured deploy branch
 			const event = request.headers["x-github-event"] as string;
 			const body = request.body as any;
-			if (event !== "push" || body?.ref !== "refs/heads/main") {
+			const deployBranch = process.env.GITHUB_DEPLOY_BRANCH || "main";
+			if (event !== "push" || body?.ref !== `refs/heads/${deployBranch}`) {
 				return reply.status(200).send({ skipped: true });
 			}
 
-			this.logger.info("[SelfDeploy] Push to main detected — will deploy once idle...");
+			this.logger.info(
+				`[SelfDeploy] Push to ${deployBranch} detected — will deploy once idle...`,
+			);
 			reply.status(200).send({ deploying: true });
 
 			// Wait until Cyrus is idle, then deploy (detached so pm2 restart won't kill the response)
 			const repoPath = process.env.CYRUS_REPO_PATH || process.cwd();
 			const waitAndDeploy = () => {
 				if (this.computeStatus() === "busy") {
-					this.logger.info("[SelfDeploy] Cyrus is busy, checking again in 15s...");
+					this.logger.info(
+						"[SelfDeploy] Cyrus is busy, checking again in 15s...",
+					);
 					setTimeout(waitAndDeploy, 15_000);
 					return;
 				}
 				this.logger.info("[SelfDeploy] Cyrus is idle — starting deploy...");
 				const child = spawn(
 					"bash",
-					["-c", `cd ${JSON.stringify(repoPath)} && git pull && pnpm install && pnpm build && pm2 restart cyrus`],
+					[
+						"-c",
+						`cd ${JSON.stringify(repoPath)} && git pull && pnpm install && pnpm build && pm2 restart cyrus`,
+					],
 					{ detached: true, stdio: "ignore" },
 				);
 				child.unref();
@@ -1729,7 +1737,9 @@ ${taskSection}`;
 		// If the just-completed subroutine was pm-analysis, extract PM_TYPE classification
 		const lastResult = this.procedureAnalyzer.getLastSubroutineResult(session);
 		if (lastResult) {
-			const pmTypeMatch = lastResult.match(/PM_TYPE:\s*(bug|feature|feedback)/i);
+			const pmTypeMatch = lastResult.match(
+				/PM_TYPE:\s*(bug|feature|feedback)/i,
+			);
 			if (pmTypeMatch?.[1]) {
 				if (!session.metadata) session.metadata = {};
 				session.metadata.pmType = pmTypeMatch[1].toLowerCase() as

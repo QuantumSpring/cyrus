@@ -99,6 +99,9 @@ export class GitHubEventTransport extends EventEmitter {
 		}
 
 		// Fall back to proxy mode with original config secret
+		this.logger.info(
+			`resolveVerification: proxy mode (CYRUS_HOST_EXTERNAL=${process.env.CYRUS_HOST_EXTERNAL}, GITHUB_WEBHOOK_SECRET=${process.env.GITHUB_WEBHOOK_SECRET ? "set" : "missing"})`,
+		);
 		return { mode: "proxy", secret: this.config.secret };
 	}
 
@@ -116,7 +119,7 @@ export class GitHubEventTransport extends EventEmitter {
 			async (request: FastifyRequest, reply: FastifyReply) => {
 				try {
 					const { mode, secret } = this.resolveVerification();
-
+					this.logger.info(`/github-webhook mode (${mode})`);
 					if (mode === "signature") {
 						await this.handleSignatureWebhook(request, reply, secret);
 					} else {
