@@ -776,8 +776,27 @@ export class EdgeWorker extends EventEmitter {
 						"-c",
 						`cd ${JSON.stringify(repoPath)} && git pull && pnpm install && pnpm build && pm2 restart cyrus`,
 					],
-					{ detached: true, stdio: "ignore" },
+					{ detached: true, stdio: ["ignore", "pipe", "pipe"] },
 				);
+				child.stdout?.on("data", (data: Buffer) => {
+					for (const line of data.toString().trim().split("\n")) {
+						this.logger.info(`[SelfDeploy] ${line}`);
+					}
+				});
+				child.stderr?.on("data", (data: Buffer) => {
+					for (const line of data.toString().trim().split("\n")) {
+						this.logger.warn(`[SelfDeploy] ${line}`);
+					}
+				});
+				child.on("close", (code: number | null) => {
+					if (code === 0) {
+						this.logger.info("[SelfDeploy] Deploy completed successfully");
+					} else {
+						this.logger.error(
+							`[SelfDeploy] Deploy failed with exit code ${code}`,
+						);
+					}
+				});
 				child.unref();
 			};
 			setTimeout(waitAndDeploy, 500);
