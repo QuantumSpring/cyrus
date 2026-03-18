@@ -1,5 +1,5 @@
 # PM Analysis
-
+Do not do deep analysis of the codebase
 Classify this issue into exactly one of the following types:
 - **bug** — something is broken or behaving incorrectly
 - **feature** — a new capability or enhancement is being requested

@@ -390,19 +390,22 @@ export class AgentSessionManager extends EventEmitter {
 			return;
 		}
 
-		if ("result" in resultMessage && resultMessage.result) {
+		if (resultMessage.subtype === "success") {
 			await this.handleProcedureCompletion(session, sessionId, resultMessage);
-		} else if (
-			resultMessage.subtype !== "success" &&
-			this.shouldRecoverFromPreviousSubroutine(resultMessage)
-		) {
+		} else if (this.shouldRecoverFromPreviousSubroutine(resultMessage)) {
 			// Error result (e.g. error_max_turns from singleTurn subroutines) — try to
-			// recover from the last completed subroutine's result so the procedure can still complete.
+			// recover from this result's text first, then fallback to last completed subroutine's text.
+			const currentResultText =
+				"result" in resultMessage && typeof resultMessage.result === "string"
+					? resultMessage.result
+					: null;
 			const recoveredText =
+				currentResultText ||
 				this.procedureAnalyzer?.getLastSubroutineResult(session);
+
 			if (recoveredText) {
 				log.info(
-					`Recovered result from previous subroutine (subtype: ${resultMessage.subtype}), treating as success for procedure completion`,
+					`Recovered result text (subtype: ${resultMessage.subtype}), treating as success for procedure completion`,
 				);
 				// Create a synthetic success result for procedure routing
 				const syntheticResult: SDKResultMessage = {
@@ -422,7 +425,7 @@ export class AgentSessionManager extends EventEmitter {
 				);
 				await this.addResultEntry(sessionId, resultMessage);
 			}
-		} else if (resultMessage.subtype !== "success") {
+		} else {
 			// Non-recoverable errors (e.g. stop/abort) should not advance procedures.
 			await this.addResultEntry(sessionId, resultMessage);
 		}

@@ -126,6 +126,51 @@ describe("AgentSessionManager stop-session behavior", () => {
 		).not.toHaveBeenCalled();
 	});
 
+	it("recovers and advances when error_max_turns includes result text", async () => {
+		const subroutineCompleteSpy = vi.fn();
+		manager.on("subroutineComplete", subroutineCompleteSpy);
+
+		// Simulate an initialized runner session so procedure advancement can proceed
+		const session = manager.getSession(sessionId);
+		if (session) {
+			session.claudeSessionId = "claude-session-123";
+		}
+
+		// Ensure recovery comes from current result text, not previous subroutine history
+		mockProcedureAnalyzer.getLastSubroutineResult.mockReturnValueOnce(null);
+
+		const resultText = "PM_TYPE: bug\n\nDetected issue classification.";
+		await manager.completeSession(sessionId, {
+			type: "result",
+			subtype: "error_max_turns",
+			duration_ms: 1,
+			duration_api_ms: 1,
+			is_error: true,
+			num_turns: 1,
+			result: resultText,
+			stop_reason: null,
+			total_cost_usd: 0,
+			usage: {
+				input_tokens: 1,
+				output_tokens: 1,
+				cache_creation_input_tokens: 0,
+				cache_read_input_tokens: 0,
+				cache_creation: null,
+			},
+			modelUsage: {},
+			permission_denials: [],
+			uuid: "result-2b",
+			session_id: "sdk-session",
+		} as any);
+
+		expect(mockProcedureAnalyzer.advanceToNextSubroutine).toHaveBeenCalledWith(
+			expect.anything(),
+			"claude-session-123",
+			resultText,
+		);
+		expect(subroutineCompleteSpy).toHaveBeenCalledTimes(1);
+	});
+
 	it("posts actual error message to Linear for usage limit errors (not generic)", async () => {
 		const usageLimitError =
 			"You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Feb 16th, 2026 8:09 PM.";
