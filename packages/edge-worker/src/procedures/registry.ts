@@ -138,7 +138,7 @@ export const SUBROUTINES = {
 	pmSummary: {
 		name: "pm-summary",
 		promptPath: "subroutines/pm-summary.md",
-		singleTurn: true,
+		maxTurns: 5,
 		description: "Presenting PM deliverable",
 		suppressThoughtPosting: true,
 		disallowAllTools: true,
@@ -146,7 +146,7 @@ export const SUBROUTINES = {
 	pmBugSummary: {
 		name: "pm-bug-summary",
 		promptPath: "subroutines/pm-bug-summary.md",
-		singleTurn: true,
+		maxTurns: 5,
 		description: "Presenting PM bug analysis",
 		suppressThoughtPosting: true,
 		disallowAllTools: true,
@@ -154,7 +154,7 @@ export const SUBROUTINES = {
 	pmFeatureSummary: {
 		name: "pm-feature-summary",
 		promptPath: "subroutines/pm-feature-summary.md",
-		singleTurn: true,
+		maxTurns: 5,
 		description: "Presenting PM feature specification",
 		suppressThoughtPosting: true,
 		disallowAllTools: true,
@@ -162,7 +162,7 @@ export const SUBROUTINES = {
 	pmFeedbackSummary: {
 		name: "pm-feedback-summary",
 		promptPath: "subroutines/pm-feedback-summary.md",
-		singleTurn: true,
+		maxTurns: 5,
 		description: "Presenting PM feedback synthesis",
 		suppressThoughtPosting: true,
 		disallowAllTools: true,

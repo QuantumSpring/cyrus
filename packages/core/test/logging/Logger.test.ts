@@ -15,6 +15,7 @@ describe("Logger", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		delete process.env.CYRUS_LOG_LEVEL;
+		delete process.env.CYRUS_LOG_TIMESTAMP;
 	});
 
 	describe("level filtering", () => {
@@ -292,6 +293,24 @@ describe("Logger", () => {
 			logger.info("visible");
 
 			expect(logSpy).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe("CYRUS_LOG_TIMESTAMP environment variable", () => {
+		it("prefixes logs with ISO timestamp when enabled", () => {
+			process.env.CYRUS_LOG_TIMESTAMP = "true";
+			const logger = createLogger({
+				component: "EdgeWorker",
+				level: LogLevel.INFO,
+			});
+
+			logger.info("Starting up");
+
+			expect(logSpy).toHaveBeenCalledTimes(1);
+			const line = logSpy.mock.calls[0]![0] as string;
+			expect(line).toMatch(
+				/^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] \[INFO \] \[EdgeWorker\] Starting up$/,
+			);
 		});
 	});
 });

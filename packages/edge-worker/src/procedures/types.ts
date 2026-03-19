@@ -15,6 +15,13 @@ export interface SubroutineDefinition {
 	/** Whether this subroutine should run in single-turn mode (maxTurns: 1) */
 	singleTurn?: boolean;
 
+	/**
+	 * Explicit max turns limit for this subroutine.
+	 * When set, overrides singleTurn (singleTurn: true = maxTurns: 1).
+	 * Use this instead of singleTurn when you need more than 1 turn but still want a cap.
+	 */
+	maxTurns?: number;
+
 	/** Human-readable description of what this subroutine does */
 	description: string;
 

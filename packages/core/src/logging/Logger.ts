@@ -36,6 +36,11 @@ function parseLevelFromEnv(): LogLevel | undefined {
 	}
 }
 
+function parseTimestampEnabledFromEnv(): boolean {
+	const raw = process.env.CYRUS_LOG_TIMESTAMP?.trim().toLowerCase();
+	return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
 const LEVEL_LABELS: Record<LogLevel, string> = {
 	[LogLevel.DEBUG]: "DEBUG",
 	[LogLevel.INFO]: "INFO",
@@ -48,6 +53,7 @@ class Logger implements ILogger {
 	private level: LogLevel;
 	private component: string;
 	private context: LogContext;
+	private includeTimestamp: boolean;
 
 	constructor(options: {
 		component: string;
@@ -57,13 +63,18 @@ class Logger implements ILogger {
 		this.component = options.component;
 		this.level = options.level ?? parseLevelFromEnv() ?? LogLevel.INFO;
 		this.context = options.context ?? {};
+		this.includeTimestamp = parseTimestampEnabledFromEnv();
 	}
 
 	private formatPrefix(level: LogLevel): string {
 		const label = LEVEL_LABELS[level];
 		const padded = label.padEnd(5);
 		const ctx = formatContext(this.context);
-		return `[${padded}] [${this.component}]${ctx}`;
+		const base = `[${padded}] [${this.component}]${ctx}`;
+		if (!this.includeTimestamp) {
+			return base;
+		}
+		return `[${new Date().toISOString()}] ${base}`;
 	}
 
 	debug(message: string, ...args: unknown[]): void {
