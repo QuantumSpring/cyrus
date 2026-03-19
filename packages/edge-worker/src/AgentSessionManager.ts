@@ -394,18 +394,32 @@ export class AgentSessionManager extends EventEmitter {
 			await this.handleProcedureCompletion(session, sessionId, resultMessage);
 		} else if (this.shouldRecoverFromPreviousSubroutine(resultMessage)) {
 			// Error result (e.g. error_max_turns from singleTurn subroutines) — try to
-			// recover from this result's text first, then fallback to last completed subroutine's text.
+			// recover from this result's text first, then latest assistant text, then
+			// fallback to last completed subroutine's text.
 			const currentResultText =
 				"result" in resultMessage && typeof resultMessage.result === "string"
 					? resultMessage.result
 					: null;
-			const recoveredText =
-				currentResultText ||
+			const latestAssistantText =
+				this.getLatestRecoverableAssistantText(sessionId);
+			const previousSubroutineText =
 				this.procedureAnalyzer?.getLastSubroutineResult(session);
 
+			log.info(
+				`[recovery] subtype=${resultMessage.subtype} currentResultText=${currentResultText ? `${currentResultText.length}chars` : "null"} latestAssistantText=${latestAssistantText ? `${latestAssistantText.length}chars` : "null"} previousSubroutineText=${previousSubroutineText ? `${previousSubroutineText.length}chars` : "null"}`,
+			);
+
+			const recoveredText =
+				currentResultText || latestAssistantText || previousSubroutineText;
+
 			if (recoveredText) {
+				const source = currentResultText
+					? "result field"
+					: latestAssistantText
+						? "latest assistant text"
+						: "previous subroutine";
 				log.info(
-					`Recovered result text (subtype: ${resultMessage.subtype}), treating as success for procedure completion`,
+					`Recovered result from ${source} (subtype: ${resultMessage.subtype}), treating as success for procedure completion`,
 				);
 				// Create a synthetic success result for procedure routing
 				const syntheticResult: SDKResultMessage = {
@@ -455,6 +469,34 @@ export class AgentSessionManager extends EventEmitter {
 			errorText.includes("turn limit") ||
 			errorText.includes("turns limit")
 		);
+	}
+
+	/**
+	 * Return the latest assistant message body that can be used as a recoverable
+	 * result for single-turn flows where the SDK emits error_max_turns without a
+	 * populated result field.
+	 */
+	private getLatestRecoverableAssistantText(sessionId: string): string | null {
+		const entries = this.entries.get(sessionId) || [];
+
+		for (let i = entries.length - 1; i >= 0; i--) {
+			const entry = entries[i];
+			if (!entry || entry.type !== "assistant") {
+				continue;
+			}
+
+			// Skip tool-use assistant entries and SDK error wrappers.
+			if (entry.metadata?.toolUseId || entry.metadata?.sdkError) {
+				continue;
+			}
+
+			const text = entry.content?.trim();
+			if (text) {
+				return text;
+			}
+		}
+
+		return null;
 	}
 
 	private consumeStopRequest(linearAgentActivitySessionId: string): boolean {

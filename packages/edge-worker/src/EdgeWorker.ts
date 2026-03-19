@@ -1792,7 +1792,9 @@ ${taskSection}`;
 			nextSubroutine = typed;
 		}
 
-		log.info(`Next subroutine: ${nextSubroutine.name}`);
+		log.info(
+			`Next subroutine: ${nextSubroutine.name} (singleTurn=${nextSubroutine.singleTurn ?? false}, maxTurns=${nextSubroutine.maxTurns ?? "none"}, disallowAllTools=${nextSubroutine.disallowAllTools ?? false})`,
+		);
 
 		// Post a visually distinct status update to Linear so the user knows what's happening next
 		await agentSessionManager.createThoughtActivity(
@@ -1828,7 +1830,8 @@ ${taskSection}`;
 				"", // No attachment manifest
 				false, // Not a new session
 				[], // No additional allowed directories
-				nextSubroutine?.singleTurn ? 1 : undefined, // singleTurn mode
+				nextSubroutine?.maxTurns ??
+					(nextSubroutine?.singleTurn ? 1 : undefined), // explicit maxTurns or singleTurn mode
 			);
 			log.info(
 				`Successfully resumed session for ${nextSubroutine.name} subroutine${nextSubroutine.singleTurn ? " (singleTurn)" : ""}`,
