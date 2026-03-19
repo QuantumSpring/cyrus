@@ -1778,6 +1778,9 @@ ${taskSection}`;
 
 		// Get next subroutine (advancement already handled by AgentSessionManager)
 		let nextSubroutine = this.procedureAnalyzer.getCurrentSubroutine(session);
+		log.info(
+			`Subroutine transition state: procedure=${session.metadata?.procedure?.procedureName ?? "unknown"}, currentSubroutineIndex=${session.metadata?.procedure?.currentSubroutineIndex ?? "unknown"}, currentSubroutine=${nextSubroutine?.name ?? "none"}`,
+		);
 
 		if (!nextSubroutine) {
 			log.info(`Procedure complete for session ${sessionId}`);
@@ -1828,6 +1831,9 @@ ${taskSection}`;
 
 		// Resume Claude session with subroutine prompt
 		try {
+			log.info(
+				`Resuming session for next subroutine ${nextSubroutine.name} with maxTurns=${nextSubroutine?.maxTurns ?? (nextSubroutine?.singleTurn ? 1 : "default")}`,
+			);
 			await this.resumeAgentSession(
 				session,
 				repo,

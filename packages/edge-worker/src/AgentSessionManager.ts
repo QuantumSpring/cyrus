@@ -533,14 +533,30 @@ export class AgentSessionManager extends EventEmitter {
 			return;
 		}
 
-		// Get the runner session ID (Claude, Gemini, Codex, or Cursor)
-		const runnerSessionId =
+		// Get the runner session ID (Claude, Gemini, Codex, or Cursor).
+		// Some runners can complete quickly and emit result/session_id before init
+		// event processing has populated the session-specific ID field.
+		const runnerSessionIdFromSession =
 			session.claudeSessionId ||
 			session.geminiSessionId ||
 			session.codexSessionId ||
 			session.cursorSessionId;
+		const runnerSessionIdFromResult =
+			typeof resultMessage.session_id === "string" &&
+			resultMessage.session_id.length > 0
+				? resultMessage.session_id
+				: null;
+		const runnerSessionId =
+			runnerSessionIdFromSession || runnerSessionIdFromResult;
+
+		log.info(
+			`Procedure completion gating: subtype=${resultMessage.subtype}, runnerSessionIdFromSession=${runnerSessionIdFromSession ? "present" : "missing"}, runnerSessionIdFromResult=${runnerSessionIdFromResult ? "present" : "missing"}`,
+		);
+
 		if (!runnerSessionId) {
-			log.error(`No runner session ID found for procedure session`);
+			log.error(
+				`No runner session ID found for procedure session (cannot advance subroutine)`,
+			);
 			return;
 		}
 
@@ -673,6 +689,9 @@ export class AgentSessionManager extends EventEmitter {
 
 			// Emit event for EdgeWorker to handle subroutine transition
 			// This replaces the callback pattern and allows EdgeWorker to subscribe
+			log.info(
+				`Emitting subroutineComplete for session ${sessionId} after advancing to ${nextSubroutine.name}`,
+			);
 			this.emit("subroutineComplete", {
 				sessionId,
 				session,

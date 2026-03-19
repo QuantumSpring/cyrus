@@ -171,6 +171,51 @@ describe("AgentSessionManager stop-session behavior", () => {
 		expect(subroutineCompleteSpy).toHaveBeenCalledTimes(1);
 	});
 
+	it("advances procedure using result session_id when session runner ID is not populated", async () => {
+		const subroutineCompleteSpy = vi.fn();
+		manager.on("subroutineComplete", subroutineCompleteSpy);
+
+		// Simulate edge case where session-specific runner IDs are not yet set
+		// but SDK result includes a valid session_id.
+		const session = manager.getSession(sessionId);
+		if (session) {
+			session.claudeSessionId = undefined as any;
+			session.geminiSessionId = undefined as any;
+			session.codexSessionId = undefined as any;
+			session.cursorSessionId = undefined as any;
+		}
+
+		await manager.completeSession(sessionId, {
+			type: "result",
+			subtype: "success",
+			duration_ms: 1,
+			duration_api_ms: 1,
+			is_error: false,
+			num_turns: 1,
+			result: "PM_TYPE: bug",
+			stop_reason: null,
+			total_cost_usd: 0,
+			usage: {
+				input_tokens: 1,
+				output_tokens: 1,
+				cache_creation_input_tokens: 0,
+				cache_read_input_tokens: 0,
+				cache_creation: null,
+			},
+			modelUsage: {},
+			permission_denials: [],
+			uuid: "result-session-id-fallback",
+			session_id: "runner-session-from-result",
+		} as any);
+
+		expect(mockProcedureAnalyzer.advanceToNextSubroutine).toHaveBeenCalledWith(
+			expect.anything(),
+			"runner-session-from-result",
+			"PM_TYPE: bug",
+		);
+		expect(subroutineCompleteSpy).toHaveBeenCalledTimes(1);
+	});
+
 	it("recovers from latest assistant text when error_max_turns result is empty", async () => {
 		const subroutineCompleteSpy = vi.fn();
 		manager.on("subroutineComplete", subroutineCompleteSpy);
