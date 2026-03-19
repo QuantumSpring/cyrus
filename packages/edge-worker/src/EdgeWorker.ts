@@ -739,6 +739,9 @@ export class EdgeWorker extends EventEmitter {
 		fastify.post("/api/self-deploy", async (request, reply) => {
 			const rawBody = (request as any).rawBody as string | undefined;
 			if (!rawBody) {
+				this.logger.warn(
+					"[SelfDeploy] Missing rawBody; ensure Fastify JSON parser preserves request.rawBody",
+				);
 				return reply.status(400).send({ error: "Missing body" });
 			}
 
@@ -747,9 +750,15 @@ export class EdgeWorker extends EventEmitter {
 			const expected = `sha256=${createHmac("sha256", secret).update(rawBody).digest("hex")}`;
 			try {
 				if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+					this.logger.warn(
+						"[SelfDeploy] Signature verification failed (timingSafeEqual mismatch)",
+					);
 					return reply.status(401).send({ error: "Invalid signature" });
 				}
 			} catch {
+				this.logger.warn(
+					"[SelfDeploy] Signature verification failed (invalid format/length)",
+				);
 				return reply.status(401).send({ error: "Invalid signature" });
 			}
 
@@ -757,7 +766,14 @@ export class EdgeWorker extends EventEmitter {
 			const event = request.headers["x-github-event"] as string;
 			const body = request.body as any;
 			const deployBranch = process.env.GITHUB_DEPLOY_BRANCH || "main";
+			if (event === "ping") {
+				this.logger.info("[SelfDeploy] Received GitHub ping event");
+				return reply.status(200).send({ ok: true, event: "ping" });
+			}
 			if (event !== "push" || body?.ref !== `refs/heads/${deployBranch}`) {
+				this.logger.info(
+					`[SelfDeploy] Skipping event=${event ?? "unknown"} ref=${body?.ref ?? "unknown"} target=refs/heads/${deployBranch}`,
+				);
 				return reply.status(200).send({ skipped: true });
 			}
 
@@ -779,10 +795,7 @@ export class EdgeWorker extends EventEmitter {
 				this.logger.info("[SelfDeploy] Cyrus is idle — starting deploy...");
 				const child = spawn(
 					"bash",
-					[
-						"-c",
-						`cd ${JSON.stringify(repoPath)} && git pull && pnpm install && pnpm build && pm2 restart cyrus`,
-					],
+					["-c", this.buildSelfDeployCommand(repoPath)],
 					{ detached: true, stdio: ["ignore", "pipe", "pipe"] },
 				);
 				child.stdout?.on("data", (data: Buffer) => {
@@ -804,6 +817,12 @@ export class EdgeWorker extends EventEmitter {
 						);
 					}
 				});
+				child.on("error", (error: Error) => {
+					this.logger.error(
+						"[SelfDeploy] Failed to spawn deploy process",
+						error,
+					);
+				});
 				child.unref();
 			};
 			setTimeout(waitAndDeploy, 500);
@@ -811,6 +830,16 @@ export class EdgeWorker extends EventEmitter {
 
 		this.logger.info("✅ Self-deploy endpoint registered");
 		this.logger.info("   Route: POST /api/self-deploy");
+	}
+
+	private buildSelfDeployCommand(repoPath: string): string {
+		return [
+			"set -euo pipefail",
+			`cd ${JSON.stringify(repoPath)}`,
+			"git pull",
+			"~/cyrus/update.sh",
+			"pm2 restart cyrus",
+		].join(" && ");
 	}
 
 	/**
