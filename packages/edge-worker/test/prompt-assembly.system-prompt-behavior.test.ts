@@ -50,6 +50,48 @@ describe("Prompt Assembly - System Prompt Behavior", () => {
 		);
 	});
 
+	it("should use deterministic plan system prompt when session persona is plan", async () => {
+		const worker = createTestWorker();
+
+		const session = {
+			issueId: "11111111-2222-3333-4444-555555555556",
+			workspace: { path: "/test" },
+			metadata: { persona: "plan" },
+		};
+
+		const issue = {
+			id: "11111111-2222-3333-4444-555555555556",
+			identifier: "CEE-998",
+			title: "Plan deterministic prompt check",
+			description: "Check plan deterministic mode",
+		};
+
+		const repository = {
+			id: "repo-uuid-1111-2222-3333-444444444445",
+			path: "/test/repo",
+		};
+
+		const result = await scenario(worker)
+			.newSession()
+			.assignmentBased()
+			.withSession(session)
+			.withIssue(issue)
+			.withRepository(repository)
+			.withUserComment("#plan create a coding plan")
+			.withLabels("feature")
+			.verify();
+
+		expect(result.systemPrompt).toBeDefined();
+		expect(result.systemPrompt).toContain("deterministic coding plan mode");
+		expect(result.systemPrompt).toContain(
+			"Do not implement code, edit files, run commands, or create PRs.",
+		);
+		expect(result.systemPrompt).not.toContain("<task_management_instructions>");
+		expect(result.systemPrompt).not.toContain(
+			"<builder_specific_instructions>",
+		);
+	});
+
 	it("should return system prompt with shared instructions when no labels configured", async () => {
 		const worker = createTestWorker();
 

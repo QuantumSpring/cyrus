@@ -257,4 +257,89 @@ Return analysis output only.`)
 			.expectComponents("issue-context", "subroutine-prompt", "user-comment")
 			.verify();
 	});
+
+	it("assignment-based with plan persona - should use deterministic plan system prompt, strip #plan tag, and load preparation subroutine", async () => {
+		const worker = createTestWorker();
+		const __filename = fileURLToPath(import.meta.url);
+		const __dirname = dirname(__filename);
+		const preparationSubroutinePrompt = readFileSync(
+			join(__dirname, "..", "src", "prompts", "subroutines", "preparation.md"),
+			"utf-8",
+		);
+
+		const session = {
+			issueId: "c3d4e5f6-a7b8-9012-cdef-123456789013",
+			workspace: { path: "/test" },
+			metadata: {
+				persona: "plan",
+				procedure: {
+					procedureName: "plan-mode",
+					currentSubroutineIndex: 0,
+					subroutineHistory: [],
+				},
+			},
+		};
+
+		const issue = {
+			id: "c3d4e5f6-a7b8-9012-cdef-123456789013",
+			identifier: "CEE-790",
+			title: "Plan auth refactor",
+			description: "Refactor auth pipeline safely",
+		};
+
+		const repository = {
+			id: "repo-uuid-3456-7890-12cd-ef1234567891",
+			path: "/test/repo",
+		};
+
+		await scenario(worker)
+			.newSession()
+			.assignmentBased()
+			.withSession(session)
+			.withIssue(issue)
+			.withRepository(repository)
+			.withUserComment("#plan Please create an implementation plan")
+			.withLabels()
+			.expectUserPrompt(`<context>
+  <repository>undefined</repository>
+  <working_directory>/test/repo</working_directory>
+  <base_branch>main</base_branch>
+</context>
+
+<linear_issue>
+  <id>c3d4e5f6-a7b8-9012-cdef-123456789013</id>
+  <identifier>CEE-790</identifier>
+  <title>Plan auth refactor</title>
+  <description>
+Refactor auth pipeline safely
+  </description>
+  <state>Unknown</state>
+  <priority>None</priority>
+  <url></url>
+  <assignee>
+    <linear_display_name></linear_display_name>
+    <linear_profile_url></linear_profile_url>
+    <github_username></github_username>
+    <github_user_id></github_user_id>
+    <github_noreply_email></github_noreply_email>
+  </assignee>
+</linear_issue>
+
+<linear_comments>
+No comments yet.
+</linear_comments>
+
+${preparationSubroutinePrompt}
+
+<user_comment>
+Please create an implementation plan
+</user_comment>`)
+			.expectSystemPrompt(`You are in deterministic coding plan mode.
+Follow only the active planning subroutine instructions.
+Do not implement code, edit files, run commands, or create PRs.
+Return implementation plan output only.`)
+			.expectPromptType("fallback")
+			.expectComponents("issue-context", "subroutine-prompt", "user-comment")
+			.verify();
+	});
 });

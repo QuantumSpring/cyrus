@@ -175,6 +175,12 @@ export class EdgeWorker extends EventEmitter {
 		"Do not implement code, edit files, run commands, or create PRs.",
 		"Return analysis output only.",
 	].join("\n");
+	private static readonly PLAN_DETERMINISTIC_SYSTEM_PROMPT = [
+		"You are in deterministic coding plan mode.",
+		"Follow only the active planning subroutine instructions.",
+		"Do not implement code, edit files, run commands, or create PRs.",
+		"Return implementation plan output only.",
+	].join("\n");
 
 	private config: EdgeWorkerConfig;
 	private repositories: Map<string, RepositoryConfig> = new Map(); // repository 'id' (internal, stored in config.json) mapped to the full repo config
@@ -3032,7 +3038,7 @@ ${taskSection}`;
 		const detectedPersona =
 			this.sessionPersonaService.detectPersonaFromComment(commentBody);
 		const cleanedCommentBody =
-			this.sessionPersonaService.stripPmPersonaTag(commentBody);
+			this.sessionPersonaService.stripPersonaTags(commentBody);
 		const isMentionTriggered =
 			cleanedCommentBody && !cleanedCommentBody.includes(AGENT_SESSION_MARKER);
 		// Check if the comment contains the /label-based-prompt command
@@ -3081,6 +3087,11 @@ ${taskSection}`;
 			await agentSessionManager.createThoughtActivity(
 				sessionId,
 				"PM persona active for this session. I will focus on scope, requirements, risks, and delivery planning.",
+			);
+		} else if (detectedPersona === "plan") {
+			await agentSessionManager.createThoughtActivity(
+				sessionId,
+				"Plan persona active for this session. I will focus on creating a clear coding implementation plan without making code changes.",
 			);
 		}
 
@@ -3147,6 +3158,17 @@ ${taskSection}`;
 			finalClassification = "question";
 			log.info(
 				`Using pm-analysis procedure due to PM persona (skipping AI routing)`,
+			);
+		} else if (detectedPersona === "plan") {
+			// Plan persona bypasses AI routing — forces implementation planning flow
+			const planProcedure = this.procedureAnalyzer.getProcedure("plan-mode");
+			if (!planProcedure) {
+				throw new Error("plan-mode procedure not found in registry");
+			}
+			finalProcedure = planProcedure;
+			finalClassification = "planning";
+			log.info(
+				`Using plan-mode procedure due to plan persona (skipping AI routing)`,
 			);
 		} else if (hasDebuggerLabel) {
 			const debuggerProcedure =
@@ -3633,6 +3655,11 @@ ${taskSection}`;
 					sessionId,
 					"PM persona active for this session. I will focus on scope, requirements, risks, and delivery planning.",
 				);
+			} else if (detectedPersona === "plan") {
+				await agentSessionManager.createThoughtActivity(
+					sessionId,
+					"Plan persona active for this session. I will focus on creating a clear coding implementation plan without making code changes.",
+				);
 			}
 
 			this.logger.debug(`Created new session ${sessionId} (prompted webhook)`);
@@ -3766,7 +3793,7 @@ ${taskSection}`;
 			this.logger.error("Failed to fetch comments for attachments:", error);
 		}
 
-		const promptBody = this.sessionPersonaService.stripPmPersonaTag(
+		const promptBody = this.sessionPersonaService.stripPersonaTags(
 			webhook.agentActivity.content.body,
 		);
 
@@ -4893,7 +4920,7 @@ ${taskSection}`;
 		}
 
 		const parts: string[] = [
-			this.sessionPersonaService.stripPmPersonaTag(input.userComment),
+			this.sessionPersonaService.stripPersonaTags(input.userComment),
 		];
 		if (input.attachmentManifest) {
 			parts.push(input.attachmentManifest);
@@ -4928,6 +4955,7 @@ ${taskSection}`;
 		let labelBasedSystemPrompt: string | undefined;
 		if (
 			sessionPersona !== "pm" &&
+			sessionPersona !== "plan" &&
 			(!input.isMentionTriggered || input.isLabelBasedPromptRequested)
 		) {
 			labelBasedSystemPrompt = await this.determineSystemPromptForAssembly(
@@ -4943,6 +4971,9 @@ ${taskSection}`;
 		if (sessionPersona === "pm") {
 			// PM flow is deterministic and should not depend on label/shared/persona prompt files.
 			systemPrompt = EdgeWorker.PM_DETERMINISTIC_SYSTEM_PROMPT;
+		} else if (sessionPersona === "plan") {
+			// Plan flow is deterministic and should not depend on label/shared/persona prompt files.
+			systemPrompt = EdgeWorker.PLAN_DETERMINISTIC_SYSTEM_PROMPT;
 		} else if (labelBasedSystemPrompt) {
 			// Use label-based system prompt as-is (no shared instructions)
 			systemPrompt = labelBasedSystemPrompt;
@@ -4995,7 +5026,7 @@ ${taskSection}`;
 
 		// 5. Add user comment (if present)
 		// Skip for mention-triggered prompts since the comment is already in the mention block
-		const cleanedUserComment = this.sessionPersonaService.stripPmPersonaTag(
+		const cleanedUserComment = this.sessionPersonaService.stripPersonaTags(
 			input.userComment,
 		);
 		if (cleanedUserComment.trim() && !input.isMentionTriggered) {
@@ -5052,7 +5083,7 @@ ${cleanedUserComment}
   <author>${author}</author>
   <timestamp>${timestamp}</timestamp>
   <content>
-${this.sessionPersonaService.stripPmPersonaTag(input.userComment)}
+${this.sessionPersonaService.stripPersonaTags(input.userComment)}
   </content>
 </new_comment>`;
 
@@ -5879,7 +5910,28 @@ ${this.sessionPersonaService.stripPmPersonaTag(input.userComment)}
 		let finalClassification: RequestClassification;
 
 		// If Orchestrator label is present, ALWAYS use orchestrator-full procedure
-		if (hasOrchestratorLabel) {
+		const persona = this.sessionPersonaService.getSessionPersona(session);
+		if (persona === "pm") {
+			const pmProcedure = this.procedureAnalyzer.getProcedure("pm-analysis");
+			if (!pmProcedure) {
+				throw new Error("pm-analysis procedure not found in registry");
+			}
+			selectedProcedure = pmProcedure;
+			finalClassification = "question";
+			this.logger.info(
+				`Using pm-analysis procedure due to PM persona (skipping AI routing)`,
+			);
+		} else if (persona === "plan") {
+			const planProcedure = this.procedureAnalyzer.getProcedure("plan-mode");
+			if (!planProcedure) {
+				throw new Error("plan-mode procedure not found in registry");
+			}
+			selectedProcedure = planProcedure;
+			finalClassification = "planning";
+			this.logger.info(
+				`Using plan-mode procedure due to plan persona (skipping AI routing)`,
+			);
+		} else if (hasOrchestratorLabel) {
 			const orchestratorProcedure =
 				this.procedureAnalyzer.getProcedure("orchestrator-full");
 			if (!orchestratorProcedure) {
@@ -6111,7 +6163,7 @@ ${this.sessionPersonaService.stripPmPersonaTag(input.userComment)}
 		const sessionPersona =
 			this.sessionPersonaService.getSessionPersona(session);
 		const systemPromptResult =
-			sessionPersona === "pm"
+			sessionPersona === "pm" || sessionPersona === "plan"
 				? undefined
 				: await this.determineSystemPromptFromLabels(labels, repository);
 		const systemPrompt = systemPromptResult?.prompt;

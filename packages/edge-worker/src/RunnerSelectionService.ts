@@ -14,7 +14,7 @@ import type {
 
 import type { ProcedureAnalyzer } from "./procedures/index.js";
 
-type SessionPersona = "default" | "pm";
+type SessionPersona = "default" | "pm" | "plan";
 
 export class RunnerSelectionService {
 	private config: EdgeWorkerConfig;
@@ -378,7 +378,7 @@ export class RunnerSelectionService {
 		let toolSource = "";
 
 		// Persona override (highest priority)
-		if (persona === "pm") {
+		if (persona === "pm" || persona === "plan") {
 			baseTools = [
 				"Read(**)",
 				"WebFetch",
@@ -390,12 +390,12 @@ export class RunnerSelectionService {
 				"Batch",
 				"Skill",
 			];
-			toolSource = "pm persona override";
+			toolSource = `${persona} persona override`;
 		}
 
 		// Priority order:
 		// 1. Repository-specific prompt type configuration
-		if (persona !== "pm") {
+		if (persona !== "pm" && persona !== "plan") {
 			const promptConfig = effectivePromptType
 				? repository.labelPrompts?.[effectivePromptType]
 				: undefined;
@@ -518,11 +518,11 @@ export class RunnerSelectionService {
 			);
 		}
 
-		if (persona !== "pm") {
+		if (persona !== "pm" && persona !== "plan") {
 			return disallowedTools;
 		}
 
-		// PM persona is intentionally non-mutating.
+		// PM/plan personas are intentionally non-mutating.
 		return [
 			...new Set([...disallowedTools, "Edit(**)", "NotebookEdit", "Bash"]),
 		];

@@ -1,6 +1,6 @@
 import type { AgentSessionCreatedWebhook, CyrusAgentSession } from "cyrus-core";
 
-export type SessionPersona = "default" | "pm";
+export type SessionPersona = "default" | "pm" | "plan";
 
 /**
  * Session persona helpers used by EdgeWorker.
@@ -8,7 +8,10 @@ export type SessionPersona = "default" | "pm";
  */
 export class SessionPersonaService {
 	private static readonly PM_PERSONA_TAG_DETECT = /(^|[\s])#pm(?=([\s]|$))/i;
-	private static readonly PM_PERSONA_TAG_REPLACE = /(^|[\s])#pm(?=([\s]|$))/gi;
+	private static readonly PLAN_PERSONA_TAG_DETECT =
+		/(^|[\s])#plan(?=([\s]|$))/i;
+	private static readonly PERSONA_TAG_REPLACE =
+		/(^|[\s])#(?:pm|plan)(?=([\s]|$))/gi;
 
 	detectPersonaFromComment(
 		commentBody: string | null | undefined,
@@ -16,17 +19,21 @@ export class SessionPersonaService {
 		if (!commentBody) {
 			return "default";
 		}
-		return SessionPersonaService.PM_PERSONA_TAG_DETECT.test(commentBody)
-			? "pm"
-			: "default";
+		if (SessionPersonaService.PM_PERSONA_TAG_DETECT.test(commentBody)) {
+			return "pm";
+		}
+		if (SessionPersonaService.PLAN_PERSONA_TAG_DETECT.test(commentBody)) {
+			return "plan";
+		}
+		return "default";
 	}
 
-	stripPmPersonaTag(commentBody: string | null | undefined): string {
+	stripPersonaTags(commentBody: string | null | undefined): string {
 		if (!commentBody) {
 			return "";
 		}
 		const stripped = commentBody.replace(
-			SessionPersonaService.PM_PERSONA_TAG_REPLACE,
+			SessionPersonaService.PERSONA_TAG_REPLACE,
 			"$1",
 		);
 		return stripped
@@ -36,7 +43,13 @@ export class SessionPersonaService {
 	}
 
 	getSessionPersona(session?: CyrusAgentSession): SessionPersona {
-		return session?.metadata?.persona === "pm" ? "pm" : "default";
+		if (session?.metadata?.persona === "pm") {
+			return "pm";
+		}
+		if (session?.metadata?.persona === "plan") {
+			return "plan";
+		}
+		return "default";
 	}
 
 	withCleanedCommentBody(

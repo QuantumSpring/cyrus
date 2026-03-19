@@ -1435,7 +1435,7 @@ ${reply.body}
 	 * Returns undefined when no persona-specific prompt should be applied.
 	 */
 	async loadPersonaInstructions(
-		persona: "default" | "pm" | undefined,
+		persona: "default" | "pm" | "plan" | undefined,
 	): Promise<string | undefined> {
 		if (!persona || persona === "default") {
 			return undefined;
