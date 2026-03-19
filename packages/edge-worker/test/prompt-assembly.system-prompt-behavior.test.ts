@@ -8,6 +8,48 @@ import { describe, expect, it } from "vitest";
 import { createTestWorker, scenario } from "./prompt-assembly-utils.js";
 
 describe("Prompt Assembly - System Prompt Behavior", () => {
+	it("should use deterministic PM system prompt when session persona is pm", async () => {
+		const worker = createTestWorker();
+
+		const session = {
+			issueId: "11111111-2222-3333-4444-555555555555",
+			workspace: { path: "/test" },
+			metadata: { persona: "pm" },
+		};
+
+		const issue = {
+			id: "11111111-2222-3333-4444-555555555555",
+			identifier: "CEE-999",
+			title: "PM deterministic prompt check",
+			description: "Check PM deterministic mode",
+		};
+
+		const repository = {
+			id: "repo-uuid-1111-2222-3333-444444444444",
+			path: "/test/repo",
+		};
+
+		const result = await scenario(worker)
+			.newSession()
+			.assignmentBased()
+			.withSession(session)
+			.withIssue(issue)
+			.withRepository(repository)
+			.withUserComment("#pm analyze only")
+			.withLabels("feature")
+			.verify();
+
+		expect(result.systemPrompt).toBeDefined();
+		expect(result.systemPrompt).toContain("deterministic PM mode");
+		expect(result.systemPrompt).toContain(
+			"Do not implement code, edit files, run commands, or create PRs.",
+		);
+		expect(result.systemPrompt).not.toContain("<task_management_instructions>");
+		expect(result.systemPrompt).not.toContain(
+			"<builder_specific_instructions>",
+		);
+	});
+
 	it("should return system prompt with shared instructions when no labels configured", async () => {
 		const worker = createTestWorker();
 

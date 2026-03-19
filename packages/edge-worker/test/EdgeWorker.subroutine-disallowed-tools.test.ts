@@ -63,6 +63,12 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 			expect(subroutine.suppressThoughtPosting).toBe(true);
 		});
 
+		it("should have disallowAllTools: true configured for pm-analysis", () => {
+			const subroutine = SUBROUTINES.pmAnalysis;
+			expect(subroutine.disallowAllTools).toBe(true);
+			expect(subroutine.singleTurn).toBe(true);
+		});
+
 		it("should NOT have disallowAllTools for non-summary subroutines", () => {
 			// Verify that regular subroutines don't have disallowAllTools
 			expect(SUBROUTINES.primary.disallowAllTools).toBeUndefined();

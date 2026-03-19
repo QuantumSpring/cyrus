@@ -132,8 +132,10 @@ export const SUBROUTINES = {
 	pmAnalysis: {
 		name: "pm-analysis",
 		promptPath: "subroutines/pm-analysis.md",
+		singleTurn: true,
 		description:
 			"Conducting PM analysis: scope, requirements, risks, dependencies",
+		disallowAllTools: true,
 	},
 	pmSummary: {
 		name: "pm-summary",

@@ -1443,16 +1443,23 @@ ${reply.body}
 
 		const __filename = fileURLToPath(import.meta.url);
 		const __dirname = dirname(__filename);
-		const promptPath = join(__dirname, "prompts", "personas", `${persona}.md`);
+		const personaFile = `${persona}.md`;
+		const promptCandidates = [
+			join(__dirname, "prompts", "personas", personaFile), // dist runtime
+			resolve(__dirname, "..", "src", "prompts", "personas", personaFile), // ts-node/dev fallback
+		];
 
-		try {
-			return await readFile(promptPath, "utf-8");
-		} catch (error) {
-			this.logger.warn(
-				`Failed to load persona prompt for "${persona}" from ${promptPath}:`,
-				error,
-			);
-			return undefined;
+		for (const promptPath of promptCandidates) {
+			try {
+				return await readFile(promptPath, "utf-8");
+			} catch {
+				// Try next candidate path.
+			}
 		}
+
+		this.logger.warn(
+			`Failed to load persona prompt for "${persona}" from candidates: ${promptCandidates.join(", ")}`,
+		);
+		return undefined;
 	}
 }

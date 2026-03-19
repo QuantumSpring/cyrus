@@ -169,6 +169,13 @@ type CyrusToolsMcpContextEntry = {
  *   processes results through to Linear Agent Activity Sessions
  */
 export class EdgeWorker extends EventEmitter {
+	private static readonly PM_DETERMINISTIC_SYSTEM_PROMPT = [
+		"You are in deterministic PM mode.",
+		"Follow only the active PM subroutine instructions.",
+		"Do not implement code, edit files, run commands, or create PRs.",
+		"Return analysis output only.",
+	].join("\n");
+
 	private config: EdgeWorkerConfig;
 	private repositories: Map<string, RepositoryConfig> = new Map(); // repository 'id' (internal, stored in config.json) mapped to the full repo config
 	private agentSessionManagers: Map<string, AgentSessionManager> = new Map(); // Maps repository ID to AgentSessionManager, which manages agent runners for a repo
@@ -4877,11 +4884,17 @@ ${taskSection}`;
 	): Promise<PromptAssembly> {
 		const components: PromptComponent[] = [];
 		const parts: string[] = [];
+		const sessionPersona = this.sessionPersonaService.getSessionPersona(
+			input.session,
+		);
 
 		// 1. Determine system prompt from labels
 		// Only for delegation (not mentions) or when /label-based-prompt is requested
 		let labelBasedSystemPrompt: string | undefined;
-		if (!input.isMentionTriggered || input.isLabelBasedPromptRequested) {
+		if (
+			sessionPersona !== "pm" &&
+			(!input.isMentionTriggered || input.isLabelBasedPromptRequested)
+		) {
 			labelBasedSystemPrompt = await this.determineSystemPromptForAssembly(
 				input.labels || [],
 				input.repository,
@@ -4892,21 +4905,22 @@ ${taskSection}`;
 		// Label-based: Use only the label-based system prompt
 		// Fallback: Use scenarios system prompt (shared instructions)
 		let systemPrompt: string;
-		if (labelBasedSystemPrompt) {
+		if (sessionPersona === "pm") {
+			// PM flow is deterministic and should not depend on label/shared/persona prompt files.
+			systemPrompt = EdgeWorker.PM_DETERMINISTIC_SYSTEM_PROMPT;
+		} else if (labelBasedSystemPrompt) {
 			// Use label-based system prompt as-is (no shared instructions)
 			systemPrompt = labelBasedSystemPrompt;
 		} else {
 			// Use scenarios system prompt for fallback cases
 			const sharedInstructions = await this.loadSharedInstructions();
 			systemPrompt = sharedInstructions;
-		}
 
-		const personaInstructions =
-			await this.promptBuilder.loadPersonaInstructions(
-				this.sessionPersonaService.getSessionPersona(input.session),
-			);
-		if (personaInstructions) {
-			systemPrompt = `${systemPrompt}\n\n${personaInstructions}`;
+			const personaInstructions =
+				await this.promptBuilder.loadPersonaInstructions(sessionPersona);
+			if (personaInstructions) {
+				systemPrompt = `${systemPrompt}\n\n${personaInstructions}`;
+			}
 		}
 
 		// 3. Build issue context using appropriate builder
@@ -6059,10 +6073,12 @@ ${this.sessionPersonaService.stripPmPersonaTag(input.userComment)}
 
 		// Fetch system prompt based on labels
 
-		const systemPromptResult = await this.determineSystemPromptFromLabels(
-			labels,
-			repository,
-		);
+		const sessionPersona =
+			this.sessionPersonaService.getSessionPersona(session);
+		const systemPromptResult =
+			sessionPersona === "pm"
+				? undefined
+				: await this.determineSystemPromptFromLabels(labels, repository);
 		const systemPrompt = systemPromptResult?.prompt;
 		const promptType = systemPromptResult?.type;
 
