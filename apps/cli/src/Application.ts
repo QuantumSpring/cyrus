@@ -9,7 +9,7 @@ import { GitService, SharedApplicationServer } from "cyrus-edge-worker";
 import dotenv from "dotenv";
 import { DEFAULT_SERVER_PORT, parsePort } from "./config/constants.js";
 import { ConfigService } from "./services/ConfigService.js";
-import { Logger } from "./services/Logger.js";
+import { Logger, LogLevel } from "./services/Logger.js";
 import { WorkerService } from "./services/WorkerService.js";
 
 /**
@@ -70,10 +70,36 @@ export class Application {
 	private loadEnvFile(): void {
 		if (existsSync(this.envFilePath)) {
 			dotenv.config({ path: this.envFilePath, override: true });
+			this.applyLoggerLevelFromEnv();
 			this.logger.info(
 				`🔧 Loaded environment variables from ${this.envFilePath}`,
 			);
 		}
+	}
+
+	private applyLoggerLevelFromEnv(): void {
+		const rawLevel = process.env.CYRUS_LOG_LEVEL?.trim().toUpperCase();
+		if (!rawLevel) {
+			return;
+		}
+
+		const levelByName: Record<string, LogLevel> = {
+			DEBUG: LogLevel.DEBUG,
+			INFO: LogLevel.INFO,
+			WARN: LogLevel.WARN,
+			ERROR: LogLevel.ERROR,
+			SILENT: LogLevel.SILENT,
+		};
+
+		const nextLevel = levelByName[rawLevel];
+		if (nextLevel === undefined) {
+			this.logger.warn(
+				`⚠️ Invalid CYRUS_LOG_LEVEL value "${rawLevel}". Expected one of: DEBUG, INFO, WARN, ERROR, SILENT.`,
+			);
+			return;
+		}
+
+		this.logger.setLevel(nextLevel);
 	}
 
 	/**

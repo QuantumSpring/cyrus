@@ -356,6 +356,35 @@ export class AgentSessionManager extends EventEmitter {
 		}
 
 		const log = this.sessionLog(sessionId);
+		const resultText =
+			"result" in resultMessage && typeof resultMessage.result === "string"
+				? resultMessage.result
+				: "";
+		const resultErrors =
+			"errors" in resultMessage && Array.isArray(resultMessage.errors)
+				? resultMessage.errors.filter(
+						(error): error is string => typeof error === "string",
+					)
+				: [];
+		const stopReason =
+			"stop_reason" in resultMessage &&
+			typeof resultMessage.stop_reason === "string" &&
+			resultMessage.stop_reason.trim().length > 0
+				? resultMessage.stop_reason.trim()
+				: undefined;
+
+		log.info(
+			`Runner result received: subtype=${resultMessage.subtype}, is_error=${resultMessage.is_error}, stop_reason=${stopReason ?? "none"}, num_turns=${resultMessage.num_turns}, duration_ms=${resultMessage.duration_ms}, result_chars=${resultText.length}, errors=${resultErrors.length}`,
+		);
+
+		if (resultErrors.length > 0) {
+			const compactErrors = resultErrors
+				.slice(0, 3)
+				.map((error) => error.replace(/\s+/g, " ").slice(0, 220));
+			log.warn(`Runner result errors: ${compactErrors.join(" | ")}`);
+		}
+
+		log.debug("Runner result payload:", resultMessage);
 
 		// Clear any active Task when session completes
 		this.activeTasksBySession.delete(sessionId);
@@ -1041,6 +1070,13 @@ export class AgentSessionManager extends EventEmitter {
 						? "cursor"
 						: "claude";
 
+		const stopReason =
+			"stop_reason" in resultMessage &&
+			typeof resultMessage.stop_reason === "string" &&
+			resultMessage.stop_reason.trim().length > 0
+				? resultMessage.stop_reason.trim()
+				: undefined;
+
 		// For error results, content may be in errors[] rather than result
 		const content =
 			"result" in resultMessage && typeof resultMessage.result === "string"
@@ -1050,7 +1086,9 @@ export class AgentSessionManager extends EventEmitter {
 						Array.isArray(resultMessage.errors) &&
 						resultMessage.errors.length > 0
 					? resultMessage.errors.join("\n")
-					: "";
+					: resultMessage.is_error
+						? `Session ended with ${resultMessage.subtype}${stopReason ? ` (stop reason: ${stopReason})` : ""}.`
+						: "";
 
 		const resultEntry: CyrusAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
