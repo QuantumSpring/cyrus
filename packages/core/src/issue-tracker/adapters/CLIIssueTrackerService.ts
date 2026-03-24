@@ -255,8 +255,53 @@ export class CLIIssueTrackerService
 
 		// Emit state change event
 		this.emit("issue:created", { issue });
+		this.emitIssueCreatedWebhook(issue, team);
 
 		return issue;
+	}
+
+	/**
+	 * Emit an Issue/create webhook-like event for CLI mode.
+	 *
+	 * This keeps EdgeWorker behavior aligned with Linear mode, where
+	 * issue creation triggers webhook processing.
+	 */
+	private emitIssueCreatedWebhook(issue: Issue, team: Team): void {
+		if (!this.eventTransport) {
+			return;
+		}
+
+		const issueData = this.state.issues.get(issue.id);
+		if (!issueData) {
+			return;
+		}
+
+		const now = new Date();
+		const webhookEvent = {
+			type: "Issue",
+			action: "create",
+			organizationId: "cli-workspace",
+			oauthClientId: "cli-oauth-client",
+			appUserId: "cli-app-user",
+			createdAt: now,
+			data: {
+				id: issue.id,
+				identifier: issue.identifier,
+				title: issue.title,
+				description: issue.description,
+				url: issue.url,
+				teamId: team.id,
+				team: {
+					id: team.id,
+					key: team.key,
+					name: team.name,
+				},
+				createdAt: issueData.createdAt.toISOString(),
+				updatedAt: issueData.updatedAt.toISOString(),
+			},
+		} as unknown as AgentEvent;
+
+		this.eventTransport.emitEvent(webhookEvent);
 	}
 
 	/**
