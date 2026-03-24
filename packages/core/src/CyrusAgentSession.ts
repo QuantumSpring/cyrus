@@ -68,6 +68,10 @@ export interface CyrusAgentSession {
 	metadata?: {
 		persona?: "default" | "pm" | "plan";
 		pmType?: "bug" | "feature" | "feedback";
+		triggerSource?: "issue_created_pm_thread";
+		outputMode?: "thread_then_description";
+		suppressFinalResponseComment?: boolean;
+		suppressNextDescriptionWebhook?: boolean;
 		model?: string;
 		tools?: string[];
 		permissionMode?: string;

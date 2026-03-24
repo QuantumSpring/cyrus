@@ -477,6 +477,19 @@ export class AgentSessionManager extends EventEmitter {
 	private shouldRecoverFromPreviousSubroutine(
 		resultMessage: SDKResultMessage,
 	): boolean {
+		const stopReason =
+			"stop_reason" in resultMessage &&
+			typeof resultMessage.stop_reason === "string"
+				? resultMessage.stop_reason.toLowerCase()
+				: "";
+
+		// If the model stopped due to tool_use at max turns, the assistant text is
+		// often an incomplete preamble (for example: "Let me first..."). Do not
+		// treat that as a recoverable successful subroutine result.
+		if (stopReason.includes("tool_use")) {
+			return false;
+		}
+
 		if (resultMessage.subtype === "error_max_turns") {
 			return true;
 		}
@@ -1076,19 +1089,25 @@ export class AgentSessionManager extends EventEmitter {
 			resultMessage.stop_reason.trim().length > 0
 				? resultMessage.stop_reason.trim()
 				: undefined;
+		const isFailureResult =
+			resultMessage.subtype !== "success" || resultMessage.is_error;
 
 		// For error results, content may be in errors[] rather than result
-		const content =
-			"result" in resultMessage && typeof resultMessage.result === "string"
-				? resultMessage.result
-				: resultMessage.is_error &&
-						"errors" in resultMessage &&
-						Array.isArray(resultMessage.errors) &&
-						resultMessage.errors.length > 0
-					? resultMessage.errors.join("\n")
-					: resultMessage.is_error
-						? `Session ended with ${resultMessage.subtype}${stopReason ? ` (stop reason: ${stopReason})` : ""}.`
-						: "";
+		const hasNonEmptyResultText =
+			"result" in resultMessage &&
+			typeof resultMessage.result === "string" &&
+			resultMessage.result.trim().length > 0;
+
+		const content = hasNonEmptyResultText
+			? resultMessage.result
+			: isFailureResult &&
+					"errors" in resultMessage &&
+					Array.isArray(resultMessage.errors) &&
+					resultMessage.errors.length > 0
+				? resultMessage.errors.join("\n")
+				: isFailureResult
+					? `Session ended with ${resultMessage.subtype}${stopReason ? ` (stop reason: ${stopReason})` : ""}.`
+					: "";
 
 		const resultEntry: CyrusAgentSessionEntry = {
 			// Set the appropriate session ID based on runner type
@@ -1104,7 +1123,7 @@ export class AgentSessionManager extends EventEmitter {
 			metadata: {
 				timestamp: Date.now(),
 				durationMs: resultMessage.duration_ms,
-				isError: resultMessage.is_error,
+				isError: isFailureResult,
 			},
 		};
 
@@ -1633,6 +1652,16 @@ export class AgentSessionManager extends EventEmitter {
 
 			// Check if current subroutine has suppressThoughtPosting enabled
 			// If so, suppress thoughts and actions (but still post responses and results)
+			if (
+				entry.type === "result" &&
+				content.type === "response" &&
+				session.metadata?.suppressFinalResponseComment
+			) {
+				session.metadata.suppressFinalResponseComment = false;
+				log.info(`Suppressing final response activity per session metadata`);
+				return;
+			}
+
 			const currentSubroutine =
 				this.procedureAnalyzer?.getCurrentSubroutine(session);
 			if (currentSubroutine?.suppressThoughtPosting) {

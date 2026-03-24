@@ -11,6 +11,7 @@ import type {
 	McpServerConfig,
 	PostToolUseHookInput,
 	SDKMessage,
+	SDKResultMessage,
 } from "cyrus-claude-runner";
 import { ClaudeRunner } from "cyrus-claude-runner";
 import { CodexRunner } from "cyrus-codex-runner";
@@ -30,6 +31,7 @@ import type {
 	ILogger,
 	InternalMessage,
 	Issue,
+	IssueCreatedWebhook,
 	IssueMinimal,
 	IssueUnassignedWebhook,
 	IssueUpdateWebhook,
@@ -41,6 +43,7 @@ import type {
 	SessionStartMessage,
 	StopSignalMessage,
 	UnassignMessage,
+	User,
 	UserPromptMessage,
 	Webhook,
 	WebhookAgentSession,
@@ -57,6 +60,7 @@ import {
 	isContentUpdateMessage,
 	isIssueAssignedWebhook,
 	isIssueCommentMentionWebhook,
+	isIssueCreatedWebhook,
 	isIssueNewCommentWebhook,
 	isIssueTitleOrDescriptionUpdateWebhook,
 	isIssueUnassignedWebhook,
@@ -169,6 +173,12 @@ type CyrusToolsMcpContextEntry = {
  *   processes results through to Linear Agent Activity Sessions
  */
 export class EdgeWorker extends EventEmitter {
+	private static readonly ISSUE_CREATE_PM_THREAD_MARKER =
+		"<!-- cyrus:issue-create-pm-thread -->";
+	private static readonly PM_BRIEF_SECTION_TITLE = "## Cyrus PM Brief";
+	private static readonly PM_BRIEF_SECTION_START =
+		"<!-- cyrus:pm-brief:start -->";
+	private static readonly PM_BRIEF_SECTION_END = "<!-- cyrus:pm-brief:end -->";
 	private static readonly PM_DETERMINISTIC_SYSTEM_PROMPT = [
 		"You are in deterministic PM mode.",
 		"Follow only the active PM subroutine instructions.",
@@ -2306,6 +2316,9 @@ ${taskSection}`;
 			} else if (isIssueUnassignedWebhook(webhook)) {
 				// Keep unassigned webhook active
 				await this.handleIssueUnassignedWebhook(webhook);
+			} else if (isIssueCreatedWebhook(webhook)) {
+				// Auto-start PM thread intake for newly created issues
+				await this.handleIssueCreatedWebhook(webhook, repos);
 			} else if (isAgentSessionCreatedWebhook(webhook)) {
 				await this.handleAgentSessionCreatedWebhook(webhook, repos);
 			} else if (isAgentSessionPromptedWebhook(webhook)) {
@@ -2534,6 +2547,250 @@ ${taskSection}`;
 	}
 
 	/**
+	 * Handle issue creation webhook.
+	 *
+	 * This starts a thread-first PM flow:
+	 * 1. Create kickoff comment containing #pm instructions
+	 * 2. Create agent session on that comment thread
+	 * 3. Let PM flow ask follow-up questions in thread
+	 * 4. Final PM output is later written into the issue description
+	 */
+	private async handleIssueCreatedWebhook(
+		webhook: IssueCreatedWebhook,
+		repos: RepositoryConfig[],
+	): Promise<void> {
+		const issueData = webhook.data;
+		const issueId = issueData?.id;
+		const issueIdentifier = issueData?.identifier || issueId || "unknown";
+
+		if (!issueId) {
+			this.logger.warn("Issue create webhook missing issue id");
+			return;
+		}
+
+		// Reuse repository routing, but fall back deterministically when selection would be needed.
+		const routingResult =
+			await this.repositoryRouter.determineRepositoryForWebhook(webhook, repos);
+		if (routingResult.type === "none") {
+			this.logger.debug(
+				`No repository configured for created issue ${issueIdentifier}`,
+			);
+			return;
+		}
+
+		let repository: RepositoryConfig | null = null;
+		if (routingResult.type === "selected") {
+			repository = routingResult.repository;
+		} else {
+			repository = routingResult.workspaceRepos[0] ?? null;
+			if (repository) {
+				this.logger.warn(
+					`Issue ${issueIdentifier} requires repository selection; using first configured repository ${repository.name} for auto PM intake`,
+				);
+			}
+		}
+
+		if (!repository) {
+			this.logger.warn(
+				`Unable to resolve repository for created issue ${issueIdentifier}`,
+			);
+			return;
+		}
+
+		// Cache repository for follow-up webhooks on this issue.
+		this.repositoryRouter.getIssueRepositoryCache().set(issueId, repository.id);
+
+		const issueTracker = this.issueTrackers.get(repository.id);
+		if (!issueTracker) {
+			this.logger.warn(
+				`No issue tracker found for repository ${repository.id}, skipping issue create flow`,
+			);
+			return;
+		}
+
+		let fullIssue: Issue;
+		try {
+			fullIssue = await issueTracker.fetchIssue(issueId);
+		} catch (error) {
+			this.logger.error(
+				`Failed to fetch created issue ${issueIdentifier}:`,
+				error,
+			);
+			return;
+		}
+
+		const productOwner = await this.resolveProductOwnerFromProjectOverview(
+			fullIssue,
+			issueTracker,
+		);
+
+		if (productOwner.user?.id) {
+			try {
+				await issueTracker.updateIssue(issueId, {
+					assigneeId: productOwner.user.id,
+				});
+				this.logger.info(
+					`Assigned created issue ${issueIdentifier} to Product Owner ${productOwner.user.id}`,
+				);
+			} catch (error) {
+				this.logger.error(
+					`Failed to assign Product Owner on ${issueIdentifier}:`,
+					error,
+				);
+			}
+		}
+
+		const kickoffComment = this.buildIssueCreatePmKickoffComment(productOwner);
+		let commentId: string | undefined;
+		try {
+			const createdComment = await issueTracker.createComment(issueId, {
+				body: kickoffComment,
+			});
+			commentId = createdComment.id;
+		} catch (error) {
+			this.logger.error(
+				`Failed to create PM kickoff comment for ${issueIdentifier}:`,
+				error,
+			);
+			return;
+		}
+
+		if (!commentId) {
+			this.logger.warn(
+				`PM kickoff comment created without ID for ${issueIdentifier}`,
+			);
+			return;
+		}
+
+		try {
+			await issueTracker.createAgentSessionOnComment({ commentId });
+			this.logger.info(
+				`Started PM intake agent session for created issue ${issueIdentifier}`,
+			);
+		} catch (error) {
+			this.logger.error(
+				`Failed to create PM intake session on comment ${commentId}:`,
+				error,
+			);
+		}
+	}
+
+	private buildIssueCreatePmKickoffComment(input: {
+		profileUrl?: string;
+		username?: string;
+		user?: User;
+	}): string {
+		const lines = [
+			EdgeWorker.ISSUE_CREATE_PM_THREAD_MARKER,
+			"#pm",
+			"",
+			"New ticket intake started.",
+			"",
+			"Please run PM intake in this thread:",
+			"- Ask clarifying questions in this thread when needed.",
+			"- Keep responses actionable and concise.",
+			"- End with `FINALIZE_DESCRIPTION: no` when clarification is still needed.",
+			"- End with `FINALIZE_DESCRIPTION: yes` only when ready to finalize the ticket description.",
+			"- The final PM brief will be written to the issue description section `Cyrus PM Brief`.",
+		];
+
+		if (input.profileUrl && input.user?.id) {
+			lines.push("", `Product Owner: ${input.profileUrl}`);
+		} else {
+			lines.push(
+				"",
+				"Product Owner could not be resolved from project overview.",
+				"Please share Product Owner profile URL in this thread (format: `https://linear.app/<workspace>/profiles/<username>`).",
+			);
+		}
+
+		return `${lines.join("\n").trim()}\n`;
+	}
+
+	private async resolveProductOwnerFromProjectOverview(
+		issue: Issue,
+		issueTracker: IIssueTrackerService,
+	): Promise<{ profileUrl?: string; username?: string; user?: User }> {
+		try {
+			const project = await issue.project;
+			const projectDescription =
+				(project as { description?: string } | undefined)?.description || "";
+			if (!projectDescription) {
+				return {};
+			}
+
+			const profileUrl =
+				this.extractProductOwnerProfileUrl(projectDescription) || undefined;
+			if (!profileUrl) {
+				return {};
+			}
+
+			const username = this.extractLinearUsernameFromProfileUrl(profileUrl);
+			const team = await issue.team;
+			if (!team?.id) {
+				return { profileUrl, username };
+			}
+
+			const fullTeam = await issueTracker.fetchTeam(team.id);
+			const members = await fullTeam.members();
+			const normalizedProfileUrl = this.normalizeLinearProfileUrl(profileUrl);
+			const normalizedUsername = username?.toLowerCase();
+
+			const user = members.nodes.find((member) => {
+				const memberUrl = this.normalizeLinearProfileUrl(member.url || "");
+				if (memberUrl && memberUrl === normalizedProfileUrl) {
+					return true;
+				}
+				if (!normalizedUsername || !memberUrl) {
+					return false;
+				}
+				return memberUrl.endsWith(`/profiles/${normalizedUsername}`);
+			});
+
+			return { profileUrl, username, user };
+		} catch (error) {
+			this.logger.warn(
+				`Failed resolving Product Owner from project overview:`,
+				error,
+			);
+			return {};
+		}
+	}
+
+	private extractProductOwnerProfileUrl(
+		projectDescription: string,
+	): string | null {
+		const markdownMatch = projectDescription.match(
+			/Product\s+Owner:\s*\[[^\]]+\]\((https:\/\/linear\.app\/[^)\s]+\/profiles\/[A-Za-z0-9._-]+)\)/i,
+		);
+		if (markdownMatch?.[1]) {
+			return this.normalizeLinearProfileUrl(markdownMatch[1]);
+		}
+
+		const urlMatch = projectDescription.match(
+			/Product\s+Owner:\s*(https:\/\/linear\.app\/[^\s)]+\/profiles\/[A-Za-z0-9._-]+)/i,
+		);
+		if (urlMatch?.[1]) {
+			return this.normalizeLinearProfileUrl(urlMatch[1]);
+		}
+
+		return null;
+	}
+
+	private extractLinearUsernameFromProfileUrl(
+		profileUrl: string,
+	): string | undefined {
+		const match = this.normalizeLinearProfileUrl(profileUrl).match(
+			/\/profiles\/([^/?#]+)$/i,
+		);
+		return match?.[1];
+	}
+
+	private normalizeLinearProfileUrl(url: string): string {
+		return url.trim().replace(/\/+$/, "").toLowerCase();
+	}
+
+	/**
 	 * Handle issue content update webhook (title, description, or attachments).
 	 *
 	 * When the title, description, or attachments of an issue are updated, this handler feeds
@@ -2689,6 +2946,16 @@ ${taskSection}`;
 		// Feed the update into each active session
 		for (const session of sessions) {
 			const linearAgentActivitySessionId = session.id;
+			if (
+				"description" in updatedFrom &&
+				session.metadata?.suppressNextDescriptionWebhook
+			) {
+				session.metadata.suppressNextDescriptionWebhook = false;
+				this.logger.debug(
+					`Skipping self-generated description update for ${linearAgentActivitySessionId}`,
+				);
+				continue;
+			}
 
 			// Check if runner is actively running and supports streaming input
 			const existingRunner = session.agentRunner;
@@ -3035,10 +3302,17 @@ ${taskSection}`;
 
 		// HACK: This is required since the comment body is always populated, thus there is no other way to differentiate between the two trigger events
 		const AGENT_SESSION_MARKER = "This thread is for an agent session";
-		const detectedPersona =
-			this.sessionPersonaService.detectPersonaFromComment(commentBody);
-		const cleanedCommentBody =
-			this.sessionPersonaService.stripPersonaTags(commentBody);
+		const isIssueCreatePmThread =
+			commentBody?.includes(EdgeWorker.ISSUE_CREATE_PM_THREAD_MARKER) || false;
+		const commentBodyForPersona = (commentBody || "")
+			.replace(EdgeWorker.ISSUE_CREATE_PM_THREAD_MARKER, "")
+			.trim();
+		const detectedPersona = this.sessionPersonaService.detectPersonaFromComment(
+			commentBodyForPersona,
+		);
+		const cleanedCommentBody = this.sessionPersonaService.stripPersonaTags(
+			commentBodyForPersona,
+		);
 		const isMentionTriggered =
 			cleanedCommentBody && !cleanedCommentBody.includes(AGENT_SESSION_MARKER);
 		// Check if the comment contains the /label-based-prompt command
@@ -3082,6 +3356,11 @@ ${taskSection}`;
 			session.metadata = {};
 		}
 		session.metadata.persona = detectedPersona;
+		if (isIssueCreatePmThread) {
+			session.metadata.triggerSource = "issue_created_pm_thread";
+			session.metadata.outputMode = "thread_then_description";
+			session.metadata.suppressFinalResponseComment = false;
+		}
 
 		if (detectedPersona === "pm") {
 			await agentSessionManager.createThoughtActivity(
@@ -4009,8 +4288,170 @@ ${taskSection}`;
 		const agentSessionManager = this.agentSessionManagers.get(repositoryId);
 		// Integrate with AgentSessionManager to capture streaming messages
 		if (agentSessionManager) {
+			if (message.type === "result") {
+				await this.handlePmThreadFinalizeResult(
+					sessionId,
+					message as SDKResultMessage,
+					repositoryId,
+					agentSessionManager,
+				);
+			}
 			await agentSessionManager.handleClaudeMessage(sessionId, message);
 		}
+	}
+
+	private async handlePmThreadFinalizeResult(
+		sessionId: string,
+		resultMessage: SDKResultMessage,
+		repositoryId: string,
+		agentSessionManager: AgentSessionManager,
+	): Promise<void> {
+		if (resultMessage.subtype !== "success" || resultMessage.is_error) {
+			return;
+		}
+
+		const session = agentSessionManager.getSession(sessionId);
+		if (!session?.metadata) {
+			return;
+		}
+
+		if (
+			session.metadata.persona !== "pm" ||
+			session.metadata.outputMode !== "thread_then_description"
+		) {
+			return;
+		}
+
+		const currentSubroutine =
+			this.procedureAnalyzer.getCurrentSubroutine(session);
+		if (currentSubroutine?.name !== "pm-summary") {
+			return;
+		}
+
+		const rawResult =
+			typeof resultMessage.result === "string" ? resultMessage.result : "";
+		const directive = this.parseFinalizeDescriptionDirective(rawResult);
+		if (!directive) {
+			return;
+		}
+
+		// Keep interaction in thread until PM explicitly declares finalization.
+		if (!directive.shouldFinalize) {
+			session.metadata.suppressFinalResponseComment = false;
+			return;
+		}
+
+		const issueId = session.issueContext?.issueId ?? session.issueId;
+		if (!issueId) {
+			this.logger.warn(
+				`Cannot finalize PM description for ${sessionId}: missing issue id`,
+			);
+			return;
+		}
+
+		const issueTracker = this.issueTrackers.get(repositoryId);
+		if (!issueTracker) {
+			this.logger.warn(
+				`Cannot finalize PM description for ${sessionId}: missing issue tracker`,
+			);
+			return;
+		}
+
+		const finalBriefBody = this.sanitizePmBriefBody(directive.body);
+		if (!finalBriefBody) {
+			this.logger.warn(
+				`PM finalize directive ignored for ${sessionId}: empty brief body`,
+			);
+			session.metadata.suppressFinalResponseComment = false;
+			return;
+		}
+
+		try {
+			const issue = await issueTracker.fetchIssue(issueId);
+			const nextDescription = this.upsertPmBriefSection(
+				issue.description || "",
+				finalBriefBody,
+			);
+			session.metadata.suppressNextDescriptionWebhook = true;
+			await issueTracker.updateIssue(issueId, {
+				description: nextDescription,
+			});
+
+			session.metadata.suppressFinalResponseComment = true;
+			await agentSessionManager.createThoughtActivity(
+				sessionId,
+				`Updated issue description section "${EdgeWorker.PM_BRIEF_SECTION_TITLE.replace(/^##\s*/, "")}".`,
+			);
+		} catch (error) {
+			this.logger.error(
+				`Failed to finalize PM description for session ${sessionId}:`,
+				error,
+			);
+			session.metadata.suppressFinalResponseComment = false;
+			session.metadata.suppressNextDescriptionWebhook = false;
+		}
+	}
+
+	private parseFinalizeDescriptionDirective(
+		resultBody: string,
+	): { shouldFinalize: boolean; body: string } | null {
+		const match = resultBody.match(
+			/^\s*FINALIZE_DESCRIPTION:\s*(yes|no)\s*$/im,
+		);
+		if (!match?.[1]) {
+			return null;
+		}
+
+		const shouldFinalize = match[1].toLowerCase() === "yes";
+		const body = resultBody
+			.replace(/^\s*FINALIZE_DESCRIPTION:\s*(yes|no)\s*$/gim, "")
+			.trim();
+
+		return { shouldFinalize, body };
+	}
+
+	private sanitizePmBriefBody(body: string): string {
+		return body
+			.replace(/^\s*PM_TYPE:\s*(bug|feature|feedback)\s*$/gim, "")
+			.trim();
+	}
+
+	private upsertPmBriefSection(
+		existingDescription: string,
+		pmBriefBody: string,
+	): string {
+		const section = `${EdgeWorker.PM_BRIEF_SECTION_TITLE}
+${EdgeWorker.PM_BRIEF_SECTION_START}
+${pmBriefBody}
+${EdgeWorker.PM_BRIEF_SECTION_END}`;
+
+		const escapedTitle = EdgeWorker.PM_BRIEF_SECTION_TITLE.replace(
+			/[.*+?^${}()|[\]\\]/g,
+			"\\$&",
+		);
+		const escapedStart = EdgeWorker.PM_BRIEF_SECTION_START.replace(
+			/[.*+?^${}()|[\]\\]/g,
+			"\\$&",
+		);
+		const escapedEnd = EdgeWorker.PM_BRIEF_SECTION_END.replace(
+			/[.*+?^${}()|[\]\\]/g,
+			"\\$&",
+		);
+		const sectionPattern = new RegExp(
+			`${escapedTitle}\\s*\\n${escapedStart}[\\s\\S]*?${escapedEnd}`,
+			"i",
+		);
+
+		const trimmedExisting = existingDescription.trim();
+		if (!trimmedExisting) {
+			return `${section}\n`;
+		}
+
+		if (sectionPattern.test(trimmedExisting)) {
+			return `${trimmedExisting.replace(sectionPattern, section)}\n`;
+		}
+
+		return `${trimmedExisting}\n\n${section}\n`;
 	}
 
 	/**
@@ -5022,6 +5463,16 @@ ${taskSection}`;
 				components.push("subroutine-prompt");
 				subroutineName = currentSubroutine.name;
 			}
+		}
+
+		if (input.session.metadata?.outputMode === "thread_then_description") {
+			parts.push(`<pm_thread_finalize_policy>
+This PM intake runs thread-first.
+- Ask clarifying questions in this thread when details are missing.
+- End with FINALIZE_DESCRIPTION: no when clarification is still needed.
+- End with FINALIZE_DESCRIPTION: yes only when the ticket description is ready to be finalized.
+- When FINALIZE_DESCRIPTION: yes, provide the final PM brief content suitable for the "Cyrus PM Brief" description section.
+</pm_thread_finalize_policy>`);
 		}
 
 		// 5. Add user comment (if present)

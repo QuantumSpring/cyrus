@@ -784,6 +784,22 @@ export type IssueUnassignedWebhook =
 	LinearSDK.LinearDocument.AppUserNotificationWebhookPayload;
 
 /**
+ * Platform-agnostic issue created webhook payload.
+ * Maps to Linear SDK's EntityWebhookPayload with issue-specific data.
+ *
+ * This type is used for Issue create webhooks that include:
+ * - `type`: "Issue"
+ * - `action`: "create"
+ * - `data`: IssueWebhookPayload (new issue state)
+ */
+export type IssueCreatedWebhook =
+	LinearSDK.LinearDocument.EntityWebhookPayload & {
+		type: "Issue";
+		action: "create";
+		data: LinearSDK.LinearDocument.IssueWebhookPayload;
+	};
+
+/**
  * Platform-agnostic issue update webhook payload.
  * Maps to Linear SDK's EntityWebhookPayload with issue-specific data.
  *
@@ -891,6 +907,15 @@ export function isIssueUnassignedWebhook(
 		webhook.type === "AppUserNotification" &&
 		webhook.action === "issueUnassignedFromYou"
 	);
+}
+
+/**
+ * Type guard to check if webhook is an issue creation event.
+ */
+export function isIssueCreatedWebhook(
+	webhook: Webhook,
+): webhook is IssueCreatedWebhook {
+	return webhook.type === "Issue" && webhook.action === "create";
 }
 
 /**

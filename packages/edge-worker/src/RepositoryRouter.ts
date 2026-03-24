@@ -128,7 +128,7 @@ export class RepositoryRouter {
 	 * Priority 5: Catch-all repositories
 	 */
 	async determineRepositoryForWebhook(
-		webhook: AgentSessionCreatedWebhook | AgentSessionPromptedWebhook,
+		webhook: Webhook,
 		repos: RepositoryConfig[],
 	): Promise<RepositoryRoutingResult> {
 		const workspaceId = webhook.organizationId;

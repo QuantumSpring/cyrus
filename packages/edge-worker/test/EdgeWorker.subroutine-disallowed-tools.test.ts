@@ -49,6 +49,12 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 			expect(subroutine.suppressThoughtPosting).toBe(true);
 		});
 
+		it("should have disallowAllTools: true configured for preparation", () => {
+			const subroutine = SUBROUTINES.preparation;
+			expect(subroutine.disallowAllTools).toBe(true);
+			expect(subroutine.singleTurn).toBe(true);
+		});
+
 		it("should have disallowAllTools: true configured for user-testing-summary", () => {
 			const subroutine = SUBROUTINES.userTestingSummary;
 			expect(subroutine.disallowAllTools).toBe(true);
@@ -80,7 +86,6 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 			expect(
 				SUBROUTINES.questionInvestigation.disallowAllTools,
 			).toBeUndefined();
-			expect(SUBROUTINES.preparation.disallowAllTools).toBeUndefined();
 		});
 	});
 

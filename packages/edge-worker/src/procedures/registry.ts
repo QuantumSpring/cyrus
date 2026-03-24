@@ -93,7 +93,9 @@ export const SUBROUTINES = {
 	preparation: {
 		name: "preparation",
 		promptPath: "subroutines/preparation.md",
+		singleTurn: true,
 		description: "Analyzing request and planning approach",
+		disallowAllTools: true,
 	},
 	planSummary: {
 		name: "plan-summary",

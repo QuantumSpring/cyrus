@@ -267,6 +267,64 @@ describe("AgentSessionManager stop-session behavior", () => {
 		expect(subroutineCompleteSpy).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not recover when error_max_turns stopped on tool_use", async () => {
+		const subroutineCompleteSpy = vi.fn();
+		manager.on("subroutineComplete", subroutineCompleteSpy);
+
+		// Simulate an initialized runner session
+		const session = manager.getSession(sessionId);
+		if (session) {
+			session.claudeSessionId = "claude-session-123";
+		}
+
+		const assistantText =
+			"Let me first understand the current project context and existing implementation.";
+		await manager.handleClaudeMessage(sessionId, {
+			type: "assistant",
+			session_id: "sdk-session",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: assistantText }],
+			},
+		} as any);
+
+		await manager.completeSession(sessionId, {
+			type: "result",
+			subtype: "error_max_turns",
+			duration_ms: 1,
+			duration_api_ms: 1,
+			is_error: false,
+			num_turns: 2,
+			result: "",
+			stop_reason: "tool_use",
+			total_cost_usd: 0,
+			usage: {
+				input_tokens: 1,
+				output_tokens: 1,
+				cache_creation_input_tokens: 0,
+				cache_read_input_tokens: 0,
+				cache_creation: null,
+			},
+			modelUsage: {},
+			permission_denials: [],
+			uuid: "result-tool-use-max-turns",
+			session_id: "sdk-session",
+		} as any);
+
+		expect(subroutineCompleteSpy).not.toHaveBeenCalled();
+		expect(
+			mockProcedureAnalyzer.advanceToNextSubroutine,
+		).not.toHaveBeenCalled();
+
+		const postActivityCalls = postActivitySpy.mock.calls;
+		const errorActivity = postActivityCalls.find(
+			(call: any[]) => call[1]?.type === "error",
+		);
+		expect(errorActivity).toBeDefined();
+		expect(errorActivity![1].body).toContain("error_max_turns");
+		expect(errorActivity![1].body).toContain("tool_use");
+	});
+
 	it("posts actual error message to Linear for usage limit errors (not generic)", async () => {
 		const usageLimitError =
 			"You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Feb 16th, 2026 8:09 PM.";
