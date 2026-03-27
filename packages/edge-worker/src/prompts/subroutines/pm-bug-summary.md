@@ -10,21 +10,21 @@ Do not trigger implementation.
 
 Produce the following sections based on the issue title, description, and any comments:
 
-### TLDR
+**TLDR**
 1–2 sentences summarizing the bug and its impact.
 
-### Reproduction Steps
+**Reproduction Steps**
 Numbered list of steps to reproduce the bug. If not explicitly stated, infer from the description.
 
-### Impact Assessment
+**Impact Assessment**
 - **Severity**: Critical / High / Medium / Low
 - **Affected users/systems**: who or what is affected
 - **Frequency**: known or estimated occurrence rate
 
-### Root Cause Hypothesis
+**Root Cause Hypothesis**
 Best guess at the technical root cause based on available information. Note assumptions clearly.
 
-### Recommended Next Steps
+**Recommended Next Steps**
 - [ ] Item 1
 - [ ] Item 2
 - [ ] Item 3

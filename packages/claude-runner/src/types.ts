@@ -35,6 +35,12 @@ export interface ClaudeRunnerConfig {
 	fallbackModel?: string; // Fallback model if primary model is unavailable
 	maxTurns?: number; // Maximum number of turns before completing the session
 	tools?: string[]; // Built-in tools available in model context (empty array disables all tools)
+	permissionMode?:
+		| "default"
+		| "acceptEdits"
+		| "bypassPermissions"
+		| "plan"
+		| "dontAsk"; // SDK permission mode ('plan' prevents tool execution)
 	cyrusHome: string; // Cyrus home directory
 	logger?: ILogger; // Optional logger instance
 	promptVersions?: {

@@ -45,14 +45,14 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 		it("should have disallowAllTools: true configured for plan-summary", () => {
 			const subroutine = SUBROUTINES.planSummary;
 			expect(subroutine.disallowAllTools).toBe(true);
-			expect(subroutine.singleTurn).toBe(true);
+			expect(subroutine.maxTurns).toBe(3);
 			expect(subroutine.suppressThoughtPosting).toBe(true);
 		});
 
 		it("should have disallowAllTools: true configured for preparation", () => {
 			const subroutine = SUBROUTINES.preparation;
 			expect(subroutine.disallowAllTools).toBe(true);
-			expect(subroutine.singleTurn).toBe(true);
+			expect(subroutine.maxTurns).toBe(100);
 		});
 
 		it("should have disallowAllTools: true configured for user-testing-summary", () => {

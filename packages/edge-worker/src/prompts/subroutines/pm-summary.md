@@ -10,22 +10,22 @@ Do not trigger implementation.
 
 Produce the following sections based on the issue title, description, and any comments:
 
-### TLDR
+**TLDR**
 1–2 sentences summarizing the issue and what needs to happen.
 
-### Scope
+**Scope**
 What is in scope and what is explicitly out of scope.
 
-### Requirements
+**Requirements**
 Numbered list of requirements or expected outcomes derived from the issue.
 
-### Risks & Open Questions
+**Risks & Open Questions**
 Risks, unknowns, or questions that should be resolved. Note assumptions clearly.
 
-### Dependencies
+**Dependencies**
 Any known dependencies on other systems, teams, or issues.
 
-### Proposed Approach
+**Proposed Approach**
 High-level recommended approach or next steps.
 
 Keep the analysis concise and actionable. If information is missing, note the gap rather than inventing details.

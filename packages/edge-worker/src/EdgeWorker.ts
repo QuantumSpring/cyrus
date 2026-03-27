@@ -4382,6 +4382,8 @@ ${taskSection}`;
 				sessionId,
 				`Updated issue description section "${EdgeWorker.PM_BRIEF_SECTION_TITLE.replace(/^##\s*/, "")}".`,
 			);
+			// Stop the runner — the brief is written, no more turns needed
+			session.agentRunner?.stop();
 		} catch (error) {
 			this.logger.error(
 				`Failed to finalize PM description for session ${sessionId}:`,
@@ -5467,11 +5469,10 @@ ${EdgeWorker.PM_BRIEF_SECTION_END}`;
 
 		if (input.session.metadata?.outputMode === "thread_then_description") {
 			parts.push(`<pm_thread_finalize_policy>
-This PM intake runs thread-first.
-- Ask clarifying questions in this thread when details are missing.
-- End with FINALIZE_DESCRIPTION: no when clarification is still needed.
-- End with FINALIZE_DESCRIPTION: yes only when the ticket description is ready to be finalized.
-- When FINALIZE_DESCRIPTION: yes, provide the final PM brief content suitable for the "Cyrus PM Brief" description section.
+This PM intake runs thread-first. You must interact with the user before finalizing.
+- On the FIRST response (when no user replies are present in the thread), always end with FINALIZE_DESCRIPTION: no — ask 2-3 concise clarifying questions to gather missing context.
+- Only end with FINALIZE_DESCRIPTION: yes after the user has responded to your questions and you have enough information to write a complete brief.
+- When FINALIZE_DESCRIPTION: yes, provide the final PM brief content suitable for the "Cyrus PM Brief" description section. Do not include any other text after it.
 </pm_thread_finalize_policy>`);
 		}
 

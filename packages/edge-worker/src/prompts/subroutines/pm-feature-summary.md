@@ -10,24 +10,24 @@ Do not trigger implementation.
 
 Produce the following sections based on the issue title, description, and any comments:
 
-### TLDR
+**TLDR**
 1–2 sentences summarizing the feature and its value.
 
-### User Story
+**User Story**
 **As a** [actor/role]
 **I want to** [action/capability]
 **So that** [benefit/outcome]
 
-### Scope
+**Scope**
 What is explicitly in scope and out of scope for this feature.
 
-### Requirements
+**Requirements**
 Numbered list of functional requirements derived from the issue.
 
-### Acceptance Criteria
+**Acceptance Criteria**
 - [ ] Criterion 1
 - [ ] Criterion 2
 - [ ] Criterion 3
 
-### Risks & Open Questions
+**Risks & Open Questions**
 List any risks, unknowns, or questions that should be resolved before implementation begins. If information is missing, note the gap rather than inventing details.

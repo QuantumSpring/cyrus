@@ -450,6 +450,9 @@ export class ClaudeRunner extends EventEmitter implements IAgentRunner {
 					...(this.config.hooks && { hooks: this.config.hooks }),
 					...(this.config.tools !== undefined && { tools: this.config.tools }),
 					...(this.config.maxTurns && { maxTurns: this.config.maxTurns }),
+					...(this.config.permissionMode && {
+						permissionMode: this.config.permissionMode,
+					}),
 					...(this.config.outputFormat && {
 						outputFormat: this.config.outputFormat,
 					}),
