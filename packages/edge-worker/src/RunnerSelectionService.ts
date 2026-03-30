@@ -73,7 +73,7 @@ export class RunnerSelectionService {
 	public getDefaultModelForRunner(runnerType: RunnerType): string {
 		if (runnerType === "claude") {
 			return (
-				this.config.claudeDefaultModel || this.config.defaultModel || "opus"
+				this.config.claudeDefaultModel || this.config.defaultModel || "sonnet"
 			);
 		}
 		if (runnerType === "gemini") {

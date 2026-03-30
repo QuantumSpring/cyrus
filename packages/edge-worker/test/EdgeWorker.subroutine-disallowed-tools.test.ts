@@ -24,21 +24,21 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 		it("should have disallowAllTools: true configured for concise-summary", () => {
 			const subroutine = SUBROUTINES.conciseSummary;
 			expect(subroutine.disallowAllTools).toBe(true);
-			expect(subroutine.singleTurn).toBe(true);
+			expect(subroutine.maxTurns).toBe(3);
 			expect(subroutine.suppressThoughtPosting).toBe(true);
 		});
 
 		it("should have disallowAllTools: true configured for verbose-summary", () => {
 			const subroutine = SUBROUTINES.verboseSummary;
 			expect(subroutine.disallowAllTools).toBe(true);
-			expect(subroutine.singleTurn).toBe(true);
+			expect(subroutine.maxTurns).toBe(3);
 			expect(subroutine.suppressThoughtPosting).toBe(true);
 		});
 
 		it("should have disallowAllTools: true configured for question-answer", () => {
 			const subroutine = SUBROUTINES.questionAnswer;
 			expect(subroutine.disallowAllTools).toBe(true);
-			expect(subroutine.singleTurn).toBe(true);
+			expect(subroutine.maxTurns).toBe(3);
 			expect(subroutine.suppressThoughtPosting).toBe(true);
 		});
 
@@ -58,21 +58,21 @@ describe("EdgeWorker - Subroutine Tool Disabling", () => {
 		it("should have disallowAllTools: true configured for user-testing-summary", () => {
 			const subroutine = SUBROUTINES.userTestingSummary;
 			expect(subroutine.disallowAllTools).toBe(true);
-			expect(subroutine.singleTurn).toBe(true);
+			expect(subroutine.maxTurns).toBe(3);
 			expect(subroutine.suppressThoughtPosting).toBe(true);
 		});
 
 		it("should have disallowAllTools: true configured for release-summary", () => {
 			const subroutine = SUBROUTINES.releaseSummary;
 			expect(subroutine.disallowAllTools).toBe(true);
-			expect(subroutine.singleTurn).toBe(true);
+			expect(subroutine.maxTurns).toBe(3);
 			expect(subroutine.suppressThoughtPosting).toBe(true);
 		});
 
 		it("should have disallowAllTools: true configured for pm-analysis", () => {
 			const subroutine = SUBROUTINES.pmAnalysis;
 			expect(subroutine.disallowAllTools).toBe(true);
-			expect(subroutine.singleTurn).toBe(true);
+			expect(subroutine.maxTurns).toBe(10);
 		});
 
 		it("should NOT have disallowAllTools for non-summary subroutines", () => {

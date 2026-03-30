@@ -3360,6 +3360,9 @@ ${taskSection}`;
 			session.metadata.triggerSource = "issue_created_pm_thread";
 			session.metadata.outputMode = "thread_then_description";
 			session.metadata.suppressFinalResponseComment = false;
+		} else if (detectedPersona === "pm") {
+			// Manual #pm in a comment — same description-update behavior as issue-create flow
+			session.metadata.outputMode = "thread_then_description";
 		}
 
 		if (detectedPersona === "pm") {

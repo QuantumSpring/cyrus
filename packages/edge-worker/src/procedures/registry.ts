@@ -8,296 +8,297 @@ import type { ProcedureDefinition, RequestClassification } from "./types.js";
  * Predefined subroutine definitions
  */
 export const SUBROUTINES = {
-	primary: {
-		name: "primary",
-		promptPath: "primary", // Special: resolved via label (debugger/builder/scoper/orchestrator) or direct user input
-		description: "Main work execution phase",
-	},
-	debuggerReproduction: {
-		name: "debugger-reproduction",
-		promptPath: "subroutines/debugger-reproduction.md",
-		description: "Reproducing bug and analyzing root cause",
-	},
-	getApproval: {
-		name: "get-approval",
-		promptPath: "subroutines/get-approval.md",
-		description: "Requesting user approval before proceeding",
-		singleTurn: true,
-		requiresApproval: true, // Flag to trigger approval workflow
-	},
-	debuggerFix: {
-		name: "debugger-fix",
-		promptPath: "subroutines/debugger-fix.md",
-		description: "Implementing fix based on root cause analysis",
-	},
-	verifications: {
-		name: "verifications",
-		promptPath: "subroutines/verifications.md",
-		description: "Running tests, linting, and type checking",
-		usesValidationLoop: true, // Enable validation loop with retry logic
-	},
-	validationFixer: {
-		name: "validation-fixer",
-		promptPath: "subroutines/validation-fixer.md",
-		description: "Fixing validation failures",
-	},
-	gitCommit: {
-		name: "git-commit",
-		promptPath: "subroutines/git-commit.md",
-		description: "Committing and pushing changes",
-	},
-	ghPr: {
-		name: "gh-pr",
-		promptPath: "subroutines/gh-pr.md",
-		description: "Creating or updating pull request",
-	},
-	changelogUpdate: {
-		name: "changelog-update",
-		promptPath: "subroutines/changelog-update.md",
-		description: "Updating changelog",
-	},
-	conciseSummary: {
-		name: "concise-summary",
-		promptPath: "subroutines/concise-summary.md",
-		singleTurn: true,
-		description: "Creating summary",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	verboseSummary: {
-		name: "verbose-summary",
-		promptPath: "subroutines/verbose-summary.md",
-		singleTurn: true,
-		description: "Creating detailed summary",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	questionInvestigation: {
-		name: "question-investigation",
-		promptPath: "subroutines/question-investigation.md",
-		description: "Investigating question",
-	},
-	questionAnswer: {
-		name: "question-answer",
-		promptPath: "subroutines/question-answer.md",
-		singleTurn: true,
-		description: "Formatting answer",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	codingActivity: {
-		name: "coding-activity",
-		promptPath: "subroutines/coding-activity.md",
-		description: "Implementing code changes",
-	},
-	preparation: {
-		name: "preparation",
-		promptPath: "subroutines/preparation.md",
-		maxTurns: 100,
-		description: "Analyzing request and planning approach",
-		disallowAllTools: true,
-	},
-	planSummary: {
-		name: "plan-summary",
-		promptPath: "subroutines/plan-summary.md",
-		maxTurns: 3,
-		description: "Presenting implementation plan",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	userTesting: {
-		name: "user-testing",
-		promptPath: "subroutines/user-testing.md",
-		description: "Performing user-requested testing",
-	},
-	userTestingSummary: {
-		name: "user-testing-summary",
-		promptPath: "subroutines/user-testing-summary.md",
-		singleTurn: true,
-		description: "Creating test results summary",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	releaseExecution: {
-		name: "release-execution",
-		promptPath: "subroutines/release-execution.md",
-		description: "Executing release process",
-	},
-	releaseSummary: {
-		name: "release-summary",
-		promptPath: "subroutines/release-summary.md",
-		singleTurn: true,
-		description: "Creating release summary",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	pmAnalysis: {
-		name: "pm-analysis",
-		promptPath: "subroutines/pm-analysis.md",
-		singleTurn: true,
-		description:
-			"Conducting PM analysis: scope, requirements, risks, dependencies",
-		disallowAllTools: true,
-	},
-	pmSummary: {
-		name: "pm-summary",
-		promptPath: "subroutines/pm-summary.md",
-		maxTurns: 5,
-		description: "Presenting PM deliverable",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	pmBugSummary: {
-		name: "pm-bug-summary",
-		promptPath: "subroutines/pm-bug-summary.md",
-		maxTurns: 5,
-		description: "Presenting PM bug analysis",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	pmFeatureSummary: {
-		name: "pm-feature-summary",
-		promptPath: "subroutines/pm-feature-summary.md",
-		maxTurns: 5,
-		description: "Presenting PM feature specification",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
-	pmFeedbackSummary: {
-		name: "pm-feedback-summary",
-		promptPath: "subroutines/pm-feedback-summary.md",
-		maxTurns: 5,
-		description: "Presenting PM feedback synthesis",
-		suppressThoughtPosting: true,
-		disallowAllTools: true,
-	},
+    primary: {
+        name: "primary",
+        promptPath: "primary", // Special: resolved via label (debugger/builder/scoper/orchestrator) or direct user input
+        description: "Main work execution phase",
+    },
+    debuggerReproduction: {
+        name: "debugger-reproduction",
+        promptPath: "subroutines/debugger-reproduction.md",
+        description: "Reproducing bug and analyzing root cause",
+    },
+    getApproval: {
+        name: "get-approval",
+        promptPath: "subroutines/get-approval.md",
+        description: "Requesting user approval before proceeding",
+        singleTurn: true,
+        requiresApproval: true, // Flag to trigger approval workflow
+    },
+    debuggerFix: {
+        name: "debugger-fix",
+        promptPath: "subroutines/debugger-fix.md",
+        description: "Implementing fix based on root cause analysis",
+    },
+    verifications: {
+        name: "verifications",
+        promptPath: "subroutines/verifications.md",
+        description: "Running tests, linting, and type checking",
+        usesValidationLoop: true, // Enable validation loop with retry logic
+    },
+    validationFixer: {
+        name: "validation-fixer",
+        promptPath: "subroutines/validation-fixer.md",
+        description: "Fixing validation failures",
+    },
+    gitCommit: {
+        name: "git-commit",
+        promptPath: "subroutines/git-commit.md",
+        description: "Committing and pushing changes",
+    },
+    ghPr: {
+        name: "gh-pr",
+        promptPath: "subroutines/gh-pr.md",
+        description: "Creating or updating pull request",
+    },
+    changelogUpdate: {
+        name: "changelog-update",
+        promptPath: "subroutines/changelog-update.md",
+        description: "Updating changelog",
+    },
+    conciseSummary: {
+        name: "concise-summary",
+        promptPath: "subroutines/concise-summary.md",
+        maxTurns: 20,
+        description: "Creating summary",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    verboseSummary: {
+        name: "verbose-summary",
+        promptPath: "subroutines/verbose-summary.md",
+        maxTurns: 20,
+        description: "Creating detailed summary",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    questionInvestigation: {
+        name: "question-investigation",
+        promptPath: "subroutines/question-investigation.md",
+        description: "Investigating question",
+    },
+    questionAnswer: {
+        name: "question-answer",
+        promptPath: "subroutines/question-answer.md",
+        maxTurns: 20,
+        description: "Formatting answer",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    codingActivity: {
+        name: "coding-activity",
+        promptPath: "subroutines/coding-activity.md",
+        description: "Implementing code changes",
+    },
+    preparation: {
+        name: "preparation",
+        promptPath: "subroutines/preparation.md",
+        maxTurns: 100,
+        description: "Analyzing request and planning approach",
+        disallowAllTools: true,
+    },
+    planSummary: {
+        name: "plan-summary",
+        promptPath: "subroutines/plan-summary.md",
+        maxTurns: 20,
+        description: "Presenting implementation plan",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    userTesting: {
+        name: "user-testing",
+        promptPath: "subroutines/user-testing.md",
+        description: "Performing user-requested testing",
+    },
+    userTestingSummary: {
+        name: "user-testing-summary",
+        promptPath: "subroutines/user-testing-summary.md",
+        maxTurns: 20,
+        description: "Creating test results summary",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    releaseExecution: {
+        name: "release-execution",
+        promptPath: "subroutines/release-execution.md",
+        description: "Executing release process",
+    },
+    releaseSummary: {
+        name: "release-summary",
+        promptPath: "subroutines/release-summary.md",
+        maxTurns: 20,
+        description: "Creating release summary",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    pmAnalysis: {
+        name: "pm-analysis",
+        promptPath: "subroutines/pm-analysis.md",
+        maxTurns: 20,
+        description:
+            "Conducting PM analysis: scope, requirements, risks, dependencies",
+        disallowAllTools: true,
+    },
+    pmSummary: {
+        name: "pm-summary",
+        promptPath: "subroutines/pm-summary.md",
+        maxTurns: 20,
+        description: "Presenting PM deliverable",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    pmBugSummary: {
+        name: "pm-bug-summary",
+        promptPath: "subroutines/pm-bug-summary.md",
+        maxTurns: 20,
+        description: "Presenting PM bug analysis",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    pmFeatureSummary: {
+        name: "pm-feature-summary",
+        promptPath: "subroutines/pm-feature-summary.md",
+        maxTurns: 20,
+        description: "Presenting PM feature specification",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
+    pmFeedbackSummary: {
+        name: "pm-feedback-summary",
+        promptPath: "subroutines/pm-feedback-summary.md",
+        maxTurns: 20,
+        description: "Presenting PM feedback synthesis",
+        suppressThoughtPosting: true,
+        disallowAllTools: true,
+    },
 } as const;
 
 /**
  * Predefined procedure definitions
  */
 export const PROCEDURES: Record<string, ProcedureDefinition> = {
-	"simple-question": {
-		name: "simple-question",
-		description: "For questions or requests that don't modify the codebase",
-		subroutines: [
-			SUBROUTINES.questionInvestigation,
-			SUBROUTINES.questionAnswer,
-		],
-	},
+    "simple-question": {
+        name: "simple-question",
+        description: "For questions or requests that don't modify the codebase",
+        subroutines: [
+            SUBROUTINES.questionInvestigation,
+            SUBROUTINES.questionAnswer,
+        ],
+    },
 
-	"documentation-edit": {
-		name: "documentation-edit",
-		description:
-			"For documentation/markdown edits that don't require verification",
-		subroutines: [
-			SUBROUTINES.primary,
-			SUBROUTINES.gitCommit,
-			SUBROUTINES.ghPr,
-			SUBROUTINES.conciseSummary,
-		],
-	},
+    "documentation-edit": {
+        name: "documentation-edit",
+        description:
+            "For documentation/markdown edits that don't require verification",
+        subroutines: [
+            SUBROUTINES.primary,
+            SUBROUTINES.gitCommit,
+            SUBROUTINES.ghPr,
+            SUBROUTINES.conciseSummary,
+        ],
+    },
 
-	"full-development": {
-		name: "full-development",
-		description: "For code changes requiring full verification and PR creation",
-		subroutines: [
-			SUBROUTINES.codingActivity,
-			SUBROUTINES.verifications,
-			SUBROUTINES.changelogUpdate,
-			SUBROUTINES.gitCommit,
-			SUBROUTINES.ghPr,
-			SUBROUTINES.conciseSummary,
-		],
-	},
+    "full-development": {
+        name: "full-development",
+        description:
+            "For code changes requiring full verification and PR creation",
+        subroutines: [
+            SUBROUTINES.codingActivity,
+            SUBROUTINES.verifications,
+            SUBROUTINES.changelogUpdate,
+            SUBROUTINES.gitCommit,
+            SUBROUTINES.ghPr,
+            SUBROUTINES.conciseSummary,
+        ],
+    },
 
-	"debugger-full": {
-		name: "debugger-full",
-		description:
-			"Full debugging workflow with reproduction, fix, and verification",
-		subroutines: [
-			SUBROUTINES.debuggerReproduction,
-			SUBROUTINES.debuggerFix,
-			SUBROUTINES.verifications,
-			SUBROUTINES.changelogUpdate,
-			SUBROUTINES.gitCommit,
-			SUBROUTINES.ghPr,
-			SUBROUTINES.conciseSummary,
-		],
-	},
+    "debugger-full": {
+        name: "debugger-full",
+        description:
+            "Full debugging workflow with reproduction, fix, and verification",
+        subroutines: [
+            SUBROUTINES.debuggerReproduction,
+            SUBROUTINES.debuggerFix,
+            SUBROUTINES.verifications,
+            SUBROUTINES.changelogUpdate,
+            SUBROUTINES.gitCommit,
+            SUBROUTINES.ghPr,
+            SUBROUTINES.conciseSummary,
+        ],
+    },
 
-	"orchestrator-full": {
-		name: "orchestrator-full",
-		description:
-			"Full orchestration workflow with decomposition and delegation to sub-agents",
-		subroutines: [SUBROUTINES.primary, SUBROUTINES.conciseSummary],
-	},
+    "orchestrator-full": {
+        name: "orchestrator-full",
+        description:
+            "Full orchestration workflow with decomposition and delegation to sub-agents",
+        subroutines: [SUBROUTINES.primary, SUBROUTINES.conciseSummary],
+    },
 
-	"plan-mode": {
-		name: "plan-mode",
-		description:
-			"Planning mode for requests needing clarification or implementation planning",
-		subroutines: [SUBROUTINES.preparation, SUBROUTINES.planSummary],
-	},
+    "plan-mode": {
+        name: "plan-mode",
+        description:
+            "Planning mode for requests needing clarification or implementation planning",
+        subroutines: [SUBROUTINES.preparation, SUBROUTINES.planSummary],
+    },
 
-	"user-testing": {
-		name: "user-testing",
-		description: "User-driven testing workflow for manual testing sessions",
-		subroutines: [SUBROUTINES.userTesting, SUBROUTINES.userTestingSummary],
-	},
+    "user-testing": {
+        name: "user-testing",
+        description: "User-driven testing workflow for manual testing sessions",
+        subroutines: [SUBROUTINES.userTesting, SUBROUTINES.userTestingSummary],
+    },
 
-	release: {
-		name: "release",
-		description:
-			"Release workflow that invokes project release skill or asks user for release info",
-		subroutines: [SUBROUTINES.releaseExecution, SUBROUTINES.releaseSummary],
-	},
+    release: {
+        name: "release",
+        description:
+            "Release workflow that invokes project release skill or asks user for release info",
+        subroutines: [SUBROUTINES.releaseExecution, SUBROUTINES.releaseSummary],
+    },
 
-	"pm-analysis": {
-		name: "pm-analysis",
-		description:
-			"PM persona workflow: analyze scope, requirements, risks, and present structured planning deliverable",
-		subroutines: [SUBROUTINES.pmAnalysis, SUBROUTINES.pmSummary],
-	},
+    "pm-analysis": {
+        name: "pm-analysis",
+        description:
+            "PM persona workflow: analyze scope, requirements, risks, and present structured planning deliverable",
+        subroutines: [SUBROUTINES.pmAnalysis, SUBROUTINES.pmSummary],
+    },
 };
 
 /**
  * Mapping from request classification to procedure name
  */
 export const CLASSIFICATION_TO_PROCEDURE: Record<
-	RequestClassification,
-	string
+    RequestClassification,
+    string
 > = {
-	question: "simple-question",
-	documentation: "documentation-edit",
-	transient: "simple-question",
-	planning: "plan-mode",
-	code: "full-development",
-	debugger: "debugger-full",
-	orchestrator: "orchestrator-full",
-	"user-testing": "user-testing",
-	release: "release",
+    question: "simple-question",
+    documentation: "documentation-edit",
+    transient: "simple-question",
+    planning: "plan-mode",
+    code: "full-development",
+    debugger: "debugger-full",
+    orchestrator: "orchestrator-full",
+    "user-testing": "user-testing",
+    release: "release",
 };
 
 /**
  * Get a procedure definition by name
  */
 export function getProcedure(name: string): ProcedureDefinition | undefined {
-	return PROCEDURES[name];
+    return PROCEDURES[name];
 }
 
 /**
  * Get procedure name for a given classification
  */
 export function getProcedureForClassification(
-	classification: RequestClassification,
+    classification: RequestClassification,
 ): string {
-	return CLASSIFICATION_TO_PROCEDURE[classification];
+    return CLASSIFICATION_TO_PROCEDURE[classification];
 }
 
 /**
  * Get all available procedure names
  */
 export function getAllProcedureNames(): string[] {
-	return Object.keys(PROCEDURES);
+    return Object.keys(PROCEDURES);
 }

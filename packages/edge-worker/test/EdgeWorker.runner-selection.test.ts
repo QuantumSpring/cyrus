@@ -1069,7 +1069,7 @@ Issue: {{issue_identifier}}`;
 			]);
 
 			expect(runnerSelection.runnerType).toBe("claude");
-			expect(runnerSelection.modelOverride).toBe("opus");
+			expect(runnerSelection.modelOverride).toBe("sonnet");
 		});
 	});
 
