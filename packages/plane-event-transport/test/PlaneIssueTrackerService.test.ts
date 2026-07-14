@@ -107,3 +107,114 @@ describe("PlaneIssueTrackerService", () => {
 		await expect(service.fetchTeams()).rejects.toThrow(/not implemented/i);
 	});
 });
+
+describe("createAgentActivity", () => {
+	let sdkMock: {
+		agentRuns: {
+			activities: { create: ReturnType<typeof vi.fn> };
+			retrieve: ReturnType<typeof vi.fn>;
+			create: ReturnType<typeof vi.fn>;
+		};
+	};
+	let service: PlaneIssueTrackerService;
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		sdkMock = {
+			agentRuns: {
+				activities: { create: vi.fn().mockResolvedValue({ id: "act-1" }) },
+				retrieve: vi.fn(),
+				create: vi.fn(),
+			},
+		};
+		// biome-ignore lint/suspicious/noExplicitAny: injected mock
+		service = new PlaneIssueTrackerService(CONFIG, sdkMock as any);
+	});
+	afterEach(() => vi.useRealTimers());
+
+	it("maps thought to an ephemeral activity with signal continue", async () => {
+		const result = await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "thought", body: "planning" },
+		});
+		expect(result.success).toBe(true);
+		expect(sdkMock.agentRuns.activities.create).toHaveBeenCalledWith(
+			"quantum",
+			"run-1",
+			{
+				type: "thought",
+				content: { type: "thought", body: "planning" },
+				ephemeral: true,
+				signal: "continue",
+			},
+		);
+	});
+
+	it("maps a final response with signal stop, non-ephemeral", async () => {
+		await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "response", body: "done" },
+			signal: "stop",
+		});
+		expect(sdkMock.agentRuns.activities.create).toHaveBeenCalledWith(
+			"quantum",
+			"run-1",
+			{
+				type: "response",
+				content: { type: "response", body: "done" },
+				ephemeral: false,
+				signal: "stop",
+			},
+		);
+	});
+
+	it("maps elicitation to signal select", async () => {
+		await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "elicitation", body: "which repo?" },
+		});
+		expect(sdkMock.agentRuns.activities.create.mock.calls[0][2].signal).toBe(
+			"select",
+		);
+	});
+
+	it("coalesces rapid ephemeral activities (rate limit: 60 req/min)", async () => {
+		await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "thought", body: "one" },
+		});
+		// within the 2s window: queued, not sent
+		await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "thought", body: "two" },
+		});
+		await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "thought", body: "three" },
+		});
+		expect(sdkMock.agentRuns.activities.create).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(2100);
+		// only the latest queued ephemeral goes out
+		expect(sdkMock.agentRuns.activities.create).toHaveBeenCalledTimes(2);
+		expect(
+			sdkMock.agentRuns.activities.create.mock.calls[1][2].content.body,
+		).toBe("three");
+	});
+
+	it("non-ephemeral activities are never dropped by the throttle", async () => {
+		await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "thought", body: "one" },
+		});
+		await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "response", body: "done" },
+			signal: "stop",
+		});
+		await vi.advanceTimersByTimeAsync(2100);
+		const sentTypes = sdkMock.agentRuns.activities.create.mock.calls.map(
+			(call) => call[2].type,
+		);
+		expect(sentTypes).toContain("response");
+	});
+});
