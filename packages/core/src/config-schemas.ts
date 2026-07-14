@@ -146,6 +146,10 @@ export const RepositoryConfigSchema = z.object({
 	routingLabels: z.array(z.string()).optional(),
 	projectKeys: z.array(z.string()).optional(),
 
+	// Plane configuration
+	planeWorkspaceSlug: z.string().optional(),
+	planeProjectId: z.string().optional(),
+
 	// Workspace configuration
 	workspaceBaseDir: z.string(),
 

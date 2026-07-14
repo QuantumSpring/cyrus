@@ -59,13 +59,25 @@ export interface CLIEventTransportConfig extends AgentEventTransportConfigBase {
 }
 
 /**
+ * Configuration for Plane event transport.
+ * Plane signs webhooks with the webhook's shared secret (HMAC-SHA256).
+ */
+export interface PlaneEventTransportConfig
+	extends AgentEventTransportConfigBase {
+	platform: "plane";
+	verificationMode: "direct"; // Plane signs with the webhook's shared secret
+	secret: string; // PLANE_WEBHOOK_SECRET
+}
+
+/**
  * Discriminated union of all event transport configurations.
  * Platform-specific config values are only required when using that platform.
  */
 export type AgentEventTransportConfig =
 	| LinearDirectEventTransportConfig
 	| LinearProxyEventTransportConfig
-	| CLIEventTransportConfig;
+	| CLIEventTransportConfig
+	| PlaneEventTransportConfig;
 
 /**
  * Event handlers for agent event transport.
