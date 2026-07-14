@@ -234,6 +234,13 @@ export class WorkerService {
 			webhookBaseUrl: process.env.CYRUS_BASE_URL,
 			serverPort: parsePort(process.env.CYRUS_SERVER_PORT, DEFAULT_SERVER_PORT),
 			serverHost: isExternalHost ? "0.0.0.0" : "localhost",
+			// Issue tracker platform selection (undefined preserves the Linear default)
+			platform:
+				(process.env.CYRUS_PLATFORM as
+					| "linear"
+					| "cli"
+					| "plane"
+					| undefined) ?? undefined,
 			ngrokAuthToken,
 			// User access control configuration
 			userAccessControl: edgeConfig.userAccessControl,

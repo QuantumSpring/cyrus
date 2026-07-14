@@ -105,6 +105,7 @@ export type {
 	IssueWithChildren,
 	Label,
 	PaginationOptions,
+	PlaneEventTransportConfig,
 	Team,
 	User,
 	Webhook,

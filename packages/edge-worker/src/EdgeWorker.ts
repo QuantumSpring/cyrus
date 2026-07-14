@@ -104,6 +104,10 @@ import {
 	createCyrusToolsServer,
 } from "cyrus-mcp-tools";
 import {
+	PlaneEventTransport,
+	PlaneIssueTrackerService,
+} from "cyrus-plane-event-transport";
+import {
 	SlackEventTransport,
 	type SlackWebhookEvent,
 } from "cyrus-slack-event-transport";
@@ -331,7 +335,8 @@ export class EdgeWorker extends EventEmitter {
 		// Initialize shared application server
 		const serverPort = config.serverPort || config.webhookPort || 3456;
 		const serverHost = config.serverHost || "localhost";
-		const skipTunnel = config.platform === "cli"; // Skip Cloudflare tunnel in CLI mode
+		// Skip Cloudflare tunnel in CLI and Plane modes (both run fully local)
+		const skipTunnel = config.platform === "cli" || config.platform === "plane";
 		this.sharedApplicationServer = new SharedApplicationServer(
 			serverPort,
 			serverHost,
@@ -366,12 +371,21 @@ export class EdgeWorker extends EventEmitter {
 								service.seedDefaultData();
 								return service;
 							})()
-						: new LinearIssueTrackerService(
-								new LinearClient({
-									accessToken: repo.linearToken,
-								}),
-								this.buildOAuthConfig(resolvedRepo),
-							);
+						: this.config.platform === "plane"
+							? new PlaneIssueTrackerService({
+									apiUrl: process.env.PLANE_API_URL ?? "",
+									apiKey: process.env.PLANE_BOT_TOKEN ?? "",
+									workspaceSlug: repo.planeWorkspaceSlug ?? "",
+									projectId: repo.planeProjectId ?? "",
+									webUrl: process.env.PLANE_WEB_URL,
+									agentSlug: process.env.PLANE_AGENT_SLUG ?? "cyrus",
+								})
+							: new LinearIssueTrackerService(
+									new LinearClient({
+										accessToken: repo.linearToken,
+									}),
+									this.buildOAuthConfig(resolvedRepo),
+								);
 				this.issueTrackers.set(repo.id, issueTracker);
 
 				// Create AgentSessionManager for this repository with parent session lookup and resume callback
@@ -625,6 +639,25 @@ export class EdgeWorker extends EventEmitter {
 			this.logger.info(
 				"   Event listener: listening for AgentSessionCreated events",
 			);
+		} else if (this.config.platform === "plane") {
+			// Plane mode: receive agent_run webhooks and translate them to the
+			// Linear-shaped AgentSessionEvent path that handleWebhook consumes.
+			const planeEventTransport = new PlaneEventTransport({
+				platform: "plane",
+				fastifyServer: this.sharedApplicationServer.getFastifyInstance(),
+				verificationMode: "direct",
+				secret: process.env.PLANE_WEBHOOK_SECRET ?? "",
+			});
+			planeEventTransport.on("event", (event) => {
+				const repos = Array.from(this.repositories.values());
+				this.handleWebhook(event as unknown as Webhook, repos);
+			});
+			planeEventTransport.on("error", (error: Error) => {
+				this.handleError(error);
+			});
+			planeEventTransport.register();
+			this.logger.info("✅ Plane event transport registered");
+			this.logger.info("   Webhook endpoint: /plane/webhook");
 		} else {
 			// Linear mode: Create and register LinearEventTransport
 			const useDirectWebhooks =
@@ -2031,12 +2064,21 @@ ${taskSection}`;
 								service.seedDefaultData();
 								return service;
 							})()
-						: new LinearIssueTrackerService(
-								new LinearClient({
-									accessToken: repo.linearToken,
-								}),
-								this.buildOAuthConfig(resolvedRepo),
-							);
+						: this.config.platform === "plane"
+							? new PlaneIssueTrackerService({
+									apiUrl: process.env.PLANE_API_URL ?? "",
+									apiKey: process.env.PLANE_BOT_TOKEN ?? "",
+									workspaceSlug: repo.planeWorkspaceSlug ?? "",
+									projectId: repo.planeProjectId ?? "",
+									webUrl: process.env.PLANE_WEB_URL,
+									agentSlug: process.env.PLANE_AGENT_SLUG ?? "cyrus",
+								})
+							: new LinearIssueTrackerService(
+									new LinearClient({
+										accessToken: repo.linearToken,
+									}),
+									this.buildOAuthConfig(resolvedRepo),
+								);
 				this.issueTrackers.set(repo.id, issueTracker);
 
 				// Create AgentSessionManager with same pattern as constructor

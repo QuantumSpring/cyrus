@@ -92,8 +92,9 @@ export interface EdgeWorkerRuntimeConfig {
 	 * Issue tracker platform type (default: "linear")
 	 * - "linear": Uses Linear as the issue tracker (default production mode)
 	 * - "cli": Uses an in-memory issue tracker for CLI-based testing and development
+	 * - "plane": Uses a Plane instance as the issue tracker
 	 */
-	platform?: "linear" | "cli";
+	platform?: "linear" | "cli" | "plane";
 
 	// --- Agent Configuration (for CLI mode) ---
 

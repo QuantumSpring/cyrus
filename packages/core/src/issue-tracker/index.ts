@@ -53,6 +53,7 @@ export type {
 	AgentEventTransportConfig,
 	AgentEventTransportEvents,
 	IAgentEventTransport,
+	PlaneEventTransportConfig,
 } from "./IAgentEventTransport.js";
 
 // ============================================================================
@@ -103,7 +104,7 @@ export const VERSION = "1.0.0";
 /**
  * Supported platform types.
  */
-export const SUPPORTED_PLATFORMS = ["linear", "cli"] as const;
+export const SUPPORTED_PLATFORMS = ["linear", "cli", "plane"] as const;
 
 /**
  * Type for supported platform identifiers.
