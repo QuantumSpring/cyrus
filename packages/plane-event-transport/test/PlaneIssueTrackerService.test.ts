@@ -167,6 +167,26 @@ describe("createAgentActivity", () => {
 		);
 	});
 
+	it("maps a response with NO explicit signal to stop (Plane has no run reaper — a response is terminal)", async () => {
+		// Upstream (AgentSessionManager) posts the final response activity without
+		// any signal; Plane only marks a run terminal on signal:stop or type:error,
+		// so a response MUST carry stop or the run polls in_progress forever.
+		await service.createAgentActivity({
+			agentSessionId: "run-1",
+			content: { type: "response", body: "all done" },
+		});
+		expect(sdkMock.agentRuns.activities.create).toHaveBeenCalledWith(
+			"quantum",
+			"run-1",
+			{
+				type: "response",
+				content: { type: "response", body: "all done" },
+				ephemeral: false,
+				signal: "stop",
+			},
+		);
+	});
+
 	it("maps elicitation to signal select", async () => {
 		await service.createAgentActivity({
 			agentSessionId: "run-1",

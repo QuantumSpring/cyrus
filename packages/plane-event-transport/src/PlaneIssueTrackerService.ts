@@ -191,8 +191,13 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 	async createAgentActivity(input: any): Promise<any> {
 		const { agentSessionId, content, ephemeral, signal } = input;
 		const type = content.type as string;
+		// Plane has no run reaper: a run only reaches a terminal status when we post
+		// signal:"stop" (→ completed) or type:"error" (→ failed). Upstream posts the
+		// session's final `response` activity with NO signal, so a `response` MUST be
+		// mapped to stop here or the work-item UI polls the run in_progress forever.
+		// (AgentActivitySignal.Stop serializes to "stop", covering the explicit case.)
 		const planeSignal =
-			signal === "stop" || signal === "Stop"
+			signal === "stop" || signal === "Stop" || type === "response"
 				? "stop"
 				: type === "elicitation"
 					? "select"
