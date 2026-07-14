@@ -127,7 +127,6 @@ describe("createAgentActivity", () => {
 				create: vi.fn(),
 			},
 		};
-		// biome-ignore lint/suspicious/noExplicitAny: injected mock
 		service = new PlaneIssueTrackerService(CONFIG, sdkMock as any);
 	});
 	afterEach(() => vi.useRealTimers());

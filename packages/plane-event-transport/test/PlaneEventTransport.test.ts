@@ -53,7 +53,6 @@ describe("PlaneEventTransport", () => {
 		fastify = createMockFastify();
 		transport = new PlaneEventTransport({
 			platform: "plane",
-			// biome-ignore lint/suspicious/noExplicitAny: mock
 			fastifyServer: fastify as any,
 			verificationMode: "direct",
 			secret: SECRET,

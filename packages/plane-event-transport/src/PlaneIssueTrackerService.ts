@@ -50,7 +50,6 @@ const notImplemented = (method: string): never => {
 export class PlaneIssueTrackerService implements IIssueTrackerService {
 	private readonly sdk: PlaneClient;
 	private lastActivitySentAt = 0;
-	// biome-ignore lint/suspicious/noExplicitAny: queued SDK request body
 	private pendingEphemeral: { runId: string; request: any } | null = null;
 	private flushTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -87,7 +86,6 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 		return `/projects/${this.config.projectId}/issues/${issueId}/${suffix}`;
 	}
 
-	// biome-ignore lint/suspicious/noExplicitAny: mapped to core Issue shape (see CLIIssueTrackerService)
 	private toIssue(raw: any): any {
 		const identifier = raw.project_identifier
 			? `${raw.project_identifier}-${raw.sequence_id}`
@@ -105,7 +103,6 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 		};
 	}
 
-	// biome-ignore lint/suspicious/noExplicitAny: mapped to core Comment shape
 	private toComment(raw: any): any {
 		return {
 			id: raw.id,
@@ -116,16 +113,13 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 
 	// --- hot path ---
 
-	// biome-ignore lint/suspicious/noExplicitAny: mapped to core Issue shape
 	async fetchIssue(idOrIdentifier: string): Promise<any> {
 		return this.toIssue(await this.request(this.issuePath(idOrIdentifier)));
 	}
 
 	async updateIssue(
 		issueId: string,
-		// biome-ignore lint/suspicious/noExplicitAny: mapped to core IssueUpdateInput
 		updates: { stateId?: string; [key: string]: unknown },
-		// biome-ignore lint/suspicious/noExplicitAny: mapped to core Issue shape
 	): Promise<any> {
 		const body: Record<string, unknown> = {};
 		if (updates.stateId) body.state = updates.stateId;
@@ -137,23 +131,16 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 		);
 	}
 
-	// biome-ignore lint/suspicious/noExplicitAny: mapped to core Connection<Comment>
 	async fetchComments(issueId: string): Promise<any> {
-		// biome-ignore lint/suspicious/noExplicitAny: raw API payload
 		const data = await this.request<any>(this.issuePath(issueId, "comments/"));
 		const results = Array.isArray(data) ? data : (data.results ?? []);
 		return {
-			// biome-ignore lint/suspicious/noExplicitAny: raw API payload
 			nodes: results.map((comment: any) => this.toComment(comment)),
 			pageInfo: { hasNextPage: false },
 		};
 	}
 
-	async createComment(
-		issueId: string,
-		input: { body: string },
-		// biome-ignore lint/suspicious/noExplicitAny: mapped to core Comment shape
-	): Promise<any> {
+	async createComment(issueId: string, input: { body: string }): Promise<any> {
 		const raw = await this.request(this.issuePath(issueId, "comments/"), {
 			method: "POST",
 			body: JSON.stringify({ comment_html: `<p>${input.body}</p>` }),
@@ -161,15 +148,12 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 		return this.toComment(raw);
 	}
 
-	// biome-ignore lint/suspicious/noExplicitAny: mapped to core Connection<WorkflowState>
 	async fetchWorkflowStates(_teamId: string): Promise<any> {
-		// biome-ignore lint/suspicious/noExplicitAny: raw API payload
 		const data = await this.request<any>(
 			`/projects/${this.config.projectId}/states/`,
 		);
 		const results = Array.isArray(data) ? data : (data.results ?? []);
 		return {
-			// biome-ignore lint/suspicious/noExplicitAny: raw API payload
 			nodes: results.map((state: any) => ({
 				id: state.id,
 				name: state.name,
@@ -204,7 +188,6 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 
 	// --- agent session/activity methods (Plane SDK) ---
 
-	// biome-ignore lint/suspicious/noExplicitAny: core AgentActivityCreateInput
 	async createAgentActivity(input: any): Promise<any> {
 		const { agentSessionId, content, ephemeral, signal } = input;
 		const type = content.type as string;
@@ -252,7 +235,6 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 		}, wait + 100);
 	}
 
-	// biome-ignore lint/suspicious/noExplicitAny: SDK request body (includes `ephemeral` fork extension)
 	private async sendActivity(runId: string, request: any): Promise<any> {
 		this.lastActivitySentAt = Date.now();
 		try {
@@ -276,7 +258,6 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 		}
 	}
 
-	// biome-ignore lint/suspicious/noExplicitAny: core AgentSessionCreateOnIssueInput
 	async createAgentSessionOnIssue(input: any): Promise<any> {
 		const run = await this.sdk.agentRuns.create(this.config.workspaceSlug, {
 			agent_slug: this.config.agentSlug ?? "cyrus",
@@ -286,7 +267,6 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 		return { success: true, agentSession: run };
 	}
 
-	// biome-ignore lint/suspicious/noExplicitAny: core AgentSessionCreateOnCommentInput
 	async createAgentSessionOnComment(input: any): Promise<any> {
 		const run = await this.sdk.agentRuns.create(this.config.workspaceSlug, {
 			agent_slug: this.config.agentSlug ?? "cyrus",
@@ -297,7 +277,6 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 		return { success: true, agentSession: run };
 	}
 
-	// biome-ignore lint/suspicious/noExplicitAny: core IssueTrackerAgentSession
 	async fetchAgentSession(sessionId: string): Promise<any> {
 		return this.sdk.agentRuns.retrieve(this.config.workspaceSlug, sessionId);
 	}
@@ -307,55 +286,42 @@ export class PlaneIssueTrackerService implements IIssueTrackerService {
 	}
 
 	// --- not needed for the PoC ---
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchIssueChildren(..._args: any[]): Promise<any> {
 		return notImplemented("fetchIssueChildren");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchIssueAttachments(..._args: any[]): Promise<any> {
 		return notImplemented("fetchIssueAttachments");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchComment(..._args: any[]): Promise<any> {
 		return notImplemented("fetchComment");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchCommentWithAttachments(..._args: any[]): Promise<any> {
 		return notImplemented("fetchCommentWithAttachments");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchTeams(..._args: any[]): Promise<any> {
 		return notImplemented("fetchTeams");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchTeam(..._args: any[]): Promise<any> {
 		return notImplemented("fetchTeam");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchLabels(..._args: any[]): Promise<any> {
 		return notImplemented("fetchLabels");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchLabel(..._args: any[]): Promise<any> {
 		return notImplemented("fetchLabel");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async getIssueLabels(..._args: any[]): Promise<any> {
 		return notImplemented("getIssueLabels");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchWorkflowState(..._args: any[]): Promise<any> {
 		return notImplemented("fetchWorkflowState");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchUser(..._args: any[]): Promise<any> {
 		return notImplemented("fetchUser");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async fetchCurrentUser(..._args: any[]): Promise<any> {
 		return notImplemented("fetchCurrentUser");
 	}
-	// biome-ignore lint/suspicious/noExplicitAny: stubs
 	async requestFileUpload(..._args: any[]): Promise<any> {
 		return notImplemented("requestFileUpload");
 	}
